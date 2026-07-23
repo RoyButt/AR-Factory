@@ -51,7 +51,7 @@
         <div class="panel-head"><h2>How it's calculated</h2><span class="muted">suits × (Handwork rate + adjustment)</span></div>
         <div class="table-scroll">
           <table class="utable" data-no-coltoggle>
-            <thead><tr><th>Date</th><th>Laat</th><th>Design</th><th>Handmade Party</th><th>Colours</th><th class="num">Suits</th><th class="num">Rate /suit</th><th class="num">Adjustment</th><th class="num">Eff /suit</th><th class="num">Amount</th></tr></thead>
+            <thead><tr><th>Date</th><th>Laat</th><th>Design</th><th>Handmade Party</th><th>Colours</th><th class="num">Suits</th><th class="num">Rate /suit</th><th>Rate source</th><th class="num">Adjustment</th><th class="num">Eff /suit</th><th class="num">Amount</th></tr></thead>
             <tbody>
               <% @rows.each do |r| %>
                 <tr>
@@ -62,6 +62,10 @@
                   <td><% if r[:colours].any? %><span class="stk-swatches"><% r[:colours].each do |c| %><span class="stk-sw" style="background:<%= c[:hex] %>" title="<%= c[:name] %>"></span><% end %></span><% else %>—<% end %></td>
                   <td class="num"><%= r[:suits] %></td>
                   <td class="num"><%= r[:rate].positive? ? rs(r[:rate]) : "—" %></td>
+                  <td>
+                    <% if r[:source] == :party %><span class="hwb-src hwb-src-party">🖐 Party rate</span>
+                    <% else %><span class="hwb-src hwb-src-cc">🧾 Cost card</span><% end %>
+                  </td>
                   <td class="num">
                     <% if current_user.view_only? %><%= r[:adjustment].to_f.zero? ? "—" : rs(r[:adjustment]) %>
                     <% else %>
@@ -75,10 +79,10 @@
                   <td class="num"><b><%= rs(r[:amount]) %></b></td>
                 </tr>
               <% end %>
-              <% if @rows.empty? %><tr><td colspan="10" class="muted" style="text-align:center;padding:24px">No handwork yet — complete a Production Sheet whose designs have Handmade &gt; 0.</td></tr><% end %>
+              <% if @rows.empty? %><tr><td colspan="11" class="muted" style="text-align:center;padding:24px">No handwork yet — complete a Production Sheet whose designs have Handmade &gt; 0.</td></tr><% end %>
             </tbody>
             <% unless @rows.empty? %>
-              <tfoot><tr class="tot"><td colspan="5" style="text-align:right"><b>Total</b></td><td class="num"><b><%= number_with_delimiter(@total_suits) %></b></td><td colspan="3"></td><td class="num"><b><%= rs(@total_handwork) %></b></td></tr></tfoot>
+              <tfoot><tr class="tot"><td colspan="5" style="text-align:right"><b>Total</b></td><td class="num"><b><%= number_with_delimiter(@total_suits) %></b></td><td colspan="4"></td><td class="num"><b><%= rs(@total_handwork) %></b></td></tr></tfoot>
             <% end %>
           </table>
         </div>

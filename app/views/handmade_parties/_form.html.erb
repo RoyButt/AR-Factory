@@ -17,6 +17,7 @@
           <div class="field"><%= f.label :contact, "Contact" %><%= f.telephone_field :contact, placeholder: "03xx-xxxxxxx" %></div>
           <div class="field"><%= f.label :email, "Email" %><%= f.email_field :email, placeholder: "party@example.com" %></div>
           <div class="field"><%= f.label :city, "City" %><%= f.text_field :city, placeholder: "City" %></div>
+          <div class="field"><%= f.label :handmade_rate, "Handmade rate (Rs/suit)" %><%= f.number_field :handmade_rate, min: 0, step: 0.01, class: "no-spin" %><small class="muted">Their own per-suit rate. Leave 0 to bill from the cost card.</small></div>
           <div class="field" style="grid-column:1 / -1"><%= f.label :address, "Address" %><%= f.text_field :address, placeholder: "Street / area" %></div>
           <div class="field" style="grid-column:1 / -1"><%= f.label :notes, "Notes" %><%= f.text_area :notes, rows: 2, placeholder: "Anything else…" %></div>
         </div>

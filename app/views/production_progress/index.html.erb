@@ -110,7 +110,7 @@
                 <td><% if hp.laat %>#<%= hp.laat %><% else %>—<% end %></td>
                 <td><b><%= hp.design_code %></b></td>
                 <td class="num"><%= hp.suits %></td>
-                <td class="num"><%= rs(hp.rate) %></td>
+                <td class="num"><%= rs(hp.base_rate) %><% if hp.rate_source == :party %> <span class="hwb-src hwb-src-party" title="Handmade party's own rate">🖐</span><% end %></td>
                 <td class="num">
                   <% if current_user.view_only? %><%= hp.adjustment.to_f.zero? ? "—" : rs(hp.adjustment) %>
                   <% else %>

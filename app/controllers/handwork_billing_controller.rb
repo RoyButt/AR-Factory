@@ -7,8 +7,8 @@ class HandworkBillingController < ApplicationController
   def index
     @rows = HandmadePass.includes(:handmade_party, production_progress: :fabric_lot).map do |p|
       { id: p.id, pass: p.token, date: p.pass_on, party: p.handmade_party&.name, party_id: p.handmade_party_id,
-        laat: p.laat, design: p.design_code, suits: p.suits.to_i, rate: p.rate.to_f, adjustment: p.adjustment.to_f,
-        eff: p.effective_rate, amount: p.amount, colours: p.colours }
+        laat: p.laat, design: p.design_code, suits: p.suits.to_i, rate: p.base_rate, source: p.rate_source,
+        cost_card_rate: p.rate.to_f, adjustment: p.adjustment.to_f, eff: p.effective_rate, amount: p.amount, colours: p.colours }
     end.sort_by { |r| [-(r[:date]&.to_time&.to_i || 0), r[:design].to_s] }
 
     @total_handwork = @rows.sum { |r| r[:amount] }.round(2)

@@ -1228,14 +1228,19 @@ tr.mx-row-sel > td { background: #eaf2ff !important; }
 .bk-print-btn { flex: none; }
 .bk-body { margin-top: 6px; max-height: 66vh; overflow-y: auto; }
 .bk-sec { margin-bottom: 14px; }
-.bk-sec-head { font-size: 13.5px; color: #22303f; margin-bottom: 5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.bk-sec-id b { font-size: 14.5px; }
+.bk-sec-head { font-size: 13.5px; color: #22303f; margin-bottom: 5px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.bk-sec-id { display: inline-flex; align-items: baseline; gap: 8px; }
+.bk-sec-laat { font-size: 12px; font-weight: 400; color: #7c8a99; }        /* laat: small, unbolded */
+.bk-sec-design { font-size: 22px; font-weight: 800; color: #16202c; letter-spacing: .3px; }  /* design: big + bold */
 .bk-sec-party { font-size: 12px; color: #2f4a6b; background: #eef4fb; border: 1px solid #d6e3f2; border-radius: 20px; padding: 2px 10px; }
 .bk-sec-sub { margin-left: auto; font-size: 12.5px; color: #5b6b7d; }
 .bk-sec-sub b { font-size: 14px; color: #134a8e; }
 /* horizontal table: colours across the top, Suits + Back Up rows down */
 .bk-htbl { border-collapse: collapse; width: auto; min-width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
 .bk-htbl th, .bk-htbl td { border: 1px solid #dbe6f2; padding: 5px 10px; text-align: center; white-space: nowrap; }
+/* big, bold Suits & Back Up values so workers can't misread */
+.bk-r-suits td, .bk-r-backup td { font-size: 18px; font-weight: 800; }
+.bk-r-suits .bk-htbl-lbl, .bk-r-backup .bk-htbl-lbl { font-size: 13px; }
 .bk-htbl thead th { background: #f5f8fc; color: #4a5a6c; font-weight: 600; }
 .bk-htbl-lbl { background: #eef4fb !important; text-align: left !important; font-weight: 600; color: #3a4a5c; }
 .bk-htbl-tot { background: #eef4fb !important; font-weight: 600; }
@@ -1257,10 +1262,10 @@ tr.mx-row-sel > td { background: #eaf2ff !important; }
   .bk-screen-only { display: none !important; }
   .bk-body { max-height: none !important; overflow: visible !important; margin-top: 0; }
   .bk-sec { page-break-inside: avoid; margin-bottom: 9px; }
-  .bk-htbl { font-size: 10.5px; }
-  .bk-htbl th, .bk-htbl td { padding: 3px 7px; }
-  .bk-total { font-size: 12px; padding: 7px 10px; }
-  .bk-total b { font-size: 15px; }
+  .bk-htbl { font-size: 11px; }
+  .bk-htbl th, .bk-htbl td { padding: 4px 7px; }
+  .bk-sec-design { font-size: 18px; }
+  .bk-r-suits td, .bk-r-backup td { font-size: 15px !important; font-weight: 800 !important; }
   .bk-htbl-lbl, .bk-htbl-tot, .bk-htbl thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .bk-sw { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
@@ -1311,3 +1316,12 @@ tr.mx-row-sel > td { background: #eaf2ff !important; }
 .claim-crow { display: flex; align-items: center; gap: 10px; }
 .claim-cname { flex: 1; min-width: 0; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
 .claim-crow .claim-suits { width: 84px; padding: 7px 9px; border: 1px solid #d5dde4; border-radius: 7px; font-size: 13px; text-align: right; }
+
+/* Handwork billing: rate source badge */
+.hwb-src { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.hwb-src-party { background: #e8f5ec; border: 1px solid #bfe3ca; color: #1f7a3d; }
+.hwb-src-cc { background: #eef2f7; border: 1px solid #dbe3ec; color: #5b6b7d; }
+
+/* Fabric lot: EMB row in the selection summary + toolbar hint */
+.mx-sel-emb td { color: #2f4a6b; }
+.mx-toolbar-hint { font-size: 12.5px; color: #6b7a8c; }

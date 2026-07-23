@@ -62,12 +62,12 @@
               <div class="ke-modal-title">🧵 Back Up cloth — <%= start_on&.strftime("%d %b %Y") %></div>
               <button type="button" class="btn-sm btn-soft bk-print-btn bk-screen-only" onclick="window.print()">🖨 Print</button>
             </div>
-            <div class="ke-modal-msg bk-screen-only">Back Up meters &amp; suits per colour, pulled from each laat's fabric lot. Prints on A5 (half A4), landscape.</div>
+            <div class="ke-modal-msg bk-screen-only">Back Up meters &amp; suits per colour, pulled from each laat's fabric lot.</div>
             <div class="bk-body">
               <% bk[:sections].each do |s| %>
                 <div class="bk-sec">
                   <div class="bk-sec-head">
-                    <span class="bk-sec-id"><b>Laat <% if s[:laat].present? %>#<%= s[:laat] %><% else %>—<% end %></b> · Design <%= s[:design].presence || "—" %></span>
+                    <span class="bk-sec-id"><b class="bk-sec-design"><%= s[:design].presence || "—" %></b><% if s[:laat].present? %><span class="bk-sec-laat">(Laat #<%= s[:laat] %>)</span><% end %></span>
                     <% if s[:contractor].present? %><span class="bk-sec-party"><%= s[:contractor] %></span><% end %>
                     <span class="bk-sec-sub">Subtotal <b><%= number_with_precision(s[:subtotal], precision: 2, strip_insignificant_zeros: true) %> m</b></span>
                   </div>
@@ -98,7 +98,6 @@
                   </div>
                 </div>
               <% end %>
-              <div class="bk-total"><span>TOTAL BACK UP</span><b><%= number_with_precision(bk[:total], precision: 2, strip_insignificant_zeros: true) %> m</b></div>
             </div>
           </div>
         </div>

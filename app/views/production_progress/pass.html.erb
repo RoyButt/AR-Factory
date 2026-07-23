@@ -19,7 +19,7 @@
               <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
                 <span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:<%= c[:hex] %>;border:1px solid #ccc"></span>
                 <span><%= c[:name].presence || "—" %></span>
-                <b style="margin-left:auto"><%= c[:net] %></b><% if c[:claimed] > 0 %> <span style="color:#b0392f;font-size:12px">(−<%= c[:claimed] %>)</span><% end %>
+                <b style="margin-left:auto"><%= c[:net] %></b>
               </div>
             <% end %>
             <div style="display:flex;justify-content:space-between;border-top:1px solid #e7edf3;margin-top:4px;padding-top:4px"><span style="color:#7c8a99">Total suits</span><b><%= cs.sum { |c| c[:net] } %></b></div>
@@ -29,8 +29,6 @@
           <% end %>
         </td>
       </tr>
-      <tr><td style="padding:6px 0;color:#7c8a99">Handwork rate (cost card)</td><td style="padding:6px 0"><%= rs(@pass.rate) %></td></tr>
-      <tr><td style="padding:6px 0;color:#7c8a99">Adjustment</td><td style="padding:6px 0"><%= @pass.adjustment.to_f >= 0 ? "+" : "" %><%= rs(@pass.adjustment) %></td></tr>
       <tr><td style="padding:6px 0;color:#7c8a99">Rate / suit</td><td style="padding:6px 0;font-weight:700"><%= rs(@pass.effective_rate) %></td></tr>
       <% if @pass.notes.present? %><tr><td style="padding:6px 0;color:#7c8a99">Notes</td><td style="padding:6px 0"><%= @pass.notes %></td></tr><% end %>
     </table>

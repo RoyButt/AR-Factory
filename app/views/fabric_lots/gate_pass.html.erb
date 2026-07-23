@@ -14,9 +14,53 @@
   table.gp-table thead th { background: #eef2f7; font-weight: 700; }
   table.gp-table td.gp-name, table.gp-table th.gp-name { text-align: left; font-weight: 700; white-space: nowrap; }
   .gp-sign { min-width: 90px; }
-  table.gp-prog td { text-align: left; }
-  table.gp-prog td.gp-h { text-align: center; font-weight: 800; width: 60px; }
-  @media print { .gp-actions { display: none !important; } }
+  table.gp-prog { font-size: 15px; }
+  table.gp-prog td { text-align: left; padding: 8px 10px; }
+  table.gp-prog td.gp-head-c { width: 60px; text-align: center; font-weight: 900; font-size: 20px; background: #eef2f7;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.gp-prog td.gp-pd { width: 110px; font-weight: 800; font-size: 16px; white-space: nowrap; background: #f5f8fc;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.gp-prog td.gp-pstat { font-size: 15px; }
+  table.gp-prog td.gp-pstat b { font-size: 18px; }
+  table.gp-prog td.gp-psuits { width: 80px; text-align: center; font-weight: 900; background: #f5f8fc;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  table.gp-prog td.gp-psuits b { font-size: 20px; color: #134a8e; }
+  .gp-ghead .gp-psuits-h { text-align: center; }
+  .gp-note { color: #7c8a99; font-weight: 400; font-size: 12px; }
+  .gp-cchip { display: inline-block; width: 13px; height: 13px; border-radius: 3px; margin-right: 4px; vertical-align: middle; border: 1px solid rgba(0,0,0,.2);
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* partial breakdown as a clean full-width 2-row grid: colour on top, suits below */
+  table.gp-mini { width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid #cdd6df; border-radius: 8px; overflow: hidden; }
+  table.gp-mini td { text-align: center; padding: 6px 4px; }
+  .gp-mini-c { font-weight: 800; font-size: 12.5px; letter-spacing: .2px; border-right: 2px solid #fff;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gp-mini-c:last-child { border-right: 0; }
+  .gp-mini-s { font-weight: 900; font-size: 20px; color: #16202c; background: #fff; padding: 7px 4px;
+    border-top: 1px solid #e7edf3; border-right: 1px solid #eef2f7; }
+  .gp-mini-s:last-child { border-right: 0; }
+  .gp-empty { padding: 8px; color: #7c8a99; }
+  /* Gazana detail — one row per colour, coloured label + write-space + total */
+  .gp-gz { margin-bottom: 10px; }
+  .gp-gz + .gp-gz { border-top: 1px dashed #cdd6df; padding-top: 8px; }
+  .gp-gz-party { font-size: 15px; font-weight: 800; color: #16202c; margin-bottom: 5px; }
+  .gp-gz-sum { font-size: 12px; font-weight: 400; color: #7c8a99; }
+  .gp-gz-sum b { color: #134a8e; }
+  table.gp-gtable { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+  table.gp-gtable td { border: 1px solid #b9c5d2; padding: 22px 10px; }   /* tall rows — room to hand-write in the middle */
+  table.gp-gtable th { border: 1px solid #b9c5d2; padding: 5px 10px; background: #eef2f7; font-size: 11px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #37506b;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gp-ghead .gp-cname-h { text-align: left; width: 10%; }
+  .gp-ghead .gp-space-h { width: 80%; }
+  .gp-ghead .gp-ctotal-h { text-align: right; width: 10%; }
+  .gp-cname { width: 10%; font-weight: 800; font-size: 14px; letter-spacing: .3px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gp-space { width: 80%; }                 /* blank area to write / mark on print — widest */
+  .gp-ctotal { width: 10%; text-align: right; font-size: 12px; white-space: nowrap; }
+  .gp-ctotal b { font-size: 20px; font-weight: 900; }
+  @media print {
+    .gp-actions { display: none !important; }
+    .gp-cname { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 
 <div class="gp">
@@ -33,44 +77,52 @@
       <div>Date: <b><%= @lot.lot_date&.strftime("%d / %m / %Y") || "—" %></b></div>
     </div>
     <div class="gp-title">Gazana Detail (cloth per colour)</div>
-    <table class="gp-table">
-      <thead>
-        <tr>
-          <th>Laat</th>
-          <% @colours.each do |c| %><th><%= c.name.presence || "—" %></th><% end %>
-          <th>Total</th>
-          <th class="gp-name">Party</th>
-          <th class="gp-sign">Signature</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% if @gaze.empty? %>
-          <tr><td colspan="<%= @colours.size + 4 %>">No contractors selected.</td></tr>
-        <% end %>
-        <% @gaze.each do |g| %>
-          <tr>
-            <td><%= @lot.laat_number %></td>
-            <% g[:per_colour].each do |v| %><td><%= v.positive? ? v : "" %></td><% end %>
-            <td><b><%= g[:total] %></b></td>
-            <td class="gp-name"><%= g[:contractor] %></td>
-            <td class="gp-sign"></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
+    <% txt = ->(hex) { h = hex.to_s.delete("#"); h = "cccccc" if h.to_s.length < 6; r = h[0, 2].to_i(16); g = h[2, 2].to_i(16); b = h[4, 2].to_i(16); (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#1f2d3d" : "#ffffff" } %>
+    <% if @gaze.empty? %><div class="gp-empty">No contractors selected.</div><% end %>
+    <% @gaze.each do |g| %>
+      <div class="gp-gz">
+        <div class="gp-gz-party"><%= g[:contractor] %> <span class="gp-gz-sum">· total <b><%= number_with_precision(g[:total], precision: 2, strip_insignificant_zeros: true) %></b></span></div>
+        <table class="gp-gtable">
+          <thead>
+            <tr class="gp-ghead"><th class="gp-cname-h">Colour</th><th class="gp-space-h"></th><th class="gp-ctotal-h">Total (m)</th></tr>
+          </thead>
+          <tbody>
+            <% @colours.each_with_index do |c, i| %>
+              <tr>
+                <td class="gp-cname" style="background:<%= c.swatch %>;color:<%= txt.(c.swatch) %>"><%= c.name.presence || "—" %></td>
+                <td class="gp-space"></td>
+                <td class="gp-ctotal"><b><%= number_with_precision(g[:per_colour][i], precision: 2, strip_insignificant_zeros: true) %></b></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
   </div>
 
   <%# ── Portion 2 · Embroidery program ── %>
   <div class="gp-part">
     <div class="gp-title">Embroidery Program — Laat #<%= @lot.laat_number %></div>
     <table class="gp-table gp-prog">
-      <thead><tr><th class="gp-h">Head</th><th>Design → Laat count</th></tr></thead>
+      <thead>
+        <tr class="gp-ghead"><th class="gp-head-h">Head</th><th class="gp-pd-h">Design</th><th>What to do</th><th class="gp-psuits-h">Total suits</th></tr>
+      </thead>
       <tbody>
-        <% if @program.empty? %><tr><td colspan="2">—</td></tr><% end %>
+        <% if @program.empty? %><tr><td colspan="4">—</td></tr><% end %>
         <% @program.each do |p| %>
           <tr>
-            <td class="gp-h"><%= p[:head] %></td>
-            <td><% p[:designs].each_with_index do |d, i| %><%= " · " if i > 0 %><b><%= d[:design] %></b> → laat <b><%= d[:count] %></b><% end %></td>
+            <td class="gp-head-c"><%= p[:head] %></td>
+            <td class="gp-pd"><%= p[:design] %></td>
+            <td class="gp-pstat">
+              <% if p[:complete] %>→ <b><%= p[:complete] %></b> laat complete <span class="gp-note">(all colours full)</span>
+              <% elsif p[:colours].any? %>
+                <table class="gp-mini">
+                  <tr><% p[:colours].each do |c| %><td class="gp-mini-c" style="background:<%= c[:hex] %>;color:<%= txt.(c[:hex]) %>"><%= c[:name].presence || "—" %></td><% end %></tr>
+                  <tr><% p[:colours].each do |c| %><td class="gp-mini-s"><%= c[:suits] %></td><% end %></tr>
+                </table>
+              <% else %>—<% end %>
+            </td>
+            <td class="gp-psuits"><b><%= p[:suits] %></b></td>
           </tr>
         <% end %>
       </tbody>

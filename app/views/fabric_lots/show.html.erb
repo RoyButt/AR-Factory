@@ -59,8 +59,7 @@
       <input type="hidden" name="save_pattern_name" id="savePatternName">
       <div class="panel">
         <div class="mx-toolbar">
-          <label class="mx-toggle mx-toggle-amber"><input type="checkbox" id="showEmbBackup"> Show EMB / Back Up total</label>
-          <label class="mx-toggle"><input type="checkbox" id="showCombined"> Show combined total (EMB + Back Up)</label>
+          <span class="mx-toolbar-hint">Tick a contractor's row(s) to see their EMB / Back Up totals below.</span>
           <button type="button" class="btn-soft" id="gatePassBtn" title="Print a gate pass for the ticked contractors (none ticked = all)">🚪 Produce Gate Pass</button>
           <% unless ro %>
             <span class="mx-toolbar-actions">
@@ -128,13 +127,16 @@
               <% if lines.empty? %>
                 <tr><td colspan="<%= span %>" class="muted" style="text-align:center;padding:20px">No design lines yet — add them on the “Rows / colours” page.</td></tr>
               <% end %>
-              <% groups = {}; order = [] %>
+              <%# Group only CONSECUTIVE same-contractor lines, so rows stay in the order created
+                  (a later line for an existing contractor forms its own group instead of jumping up). %>
+              <% runs = [] %>
               <% lines.each do |l| %>
-                <% key = l.contractor.to_s %>
-                <% order << key unless groups.key?(key) %>
-                <% (groups[key] ||= []) << l %>
+                <% if runs.any? && runs.last[:contractor].to_s == l.contractor.to_s %>
+                  <% runs.last[:lines] << l %>
+                <% else %>
+                  <% runs << { contractor: l.contractor, lines: [l] } %>
+                <% end %>
               <% end %>
-              <% runs = order.map { |k| { contractor: groups[k].first.contractor, lines: groups[k] } } %>
               <% sr = 0 %>
               <% runs.each_with_index do |run, ri| %>
                 <% run[:lines].each do |l| %>
@@ -211,11 +213,11 @@
                     <% end %>
                   </tr>
                 <% end %>
-                <tr class="mx-total-row mx-total-emb-row" data-total-run="<%= ri %>">
+                <tr class="mx-total-row mx-total-emb-row" data-total-run="<%= ri %>" style="display:none">
                   <td colspan="3" rowspan="2" class="mx-total-lbl"><b><%= run[:contractor].presence || "—" %></b> — cloth to send<div class="mx-total-cap">EMB (top) &amp; Back&nbsp;Up (bottom), per colour</div></td>
                   <% colours.each do |c| %><td class="mx-num mx-total-emb" data-run="<%= ri %>" data-cid="<%= c.id %>">—</td><% end %>
                 </tr>
-                <tr class="mx-total-row mx-total-backup-row">
+                <tr class="mx-total-row mx-total-backup-row" style="display:none">
                   <% colours.each do |c| %><td class="mx-num mx-total-backup" data-run="<%= ri %>" data-cid="<%= c.id %>">—</td><% end %>
                 </tr>
                 <tr class="mx-total-row mx-combined-row" style="display:none">
@@ -371,19 +373,22 @@
       if (!runs.length) { box.style.display = "none"; box.innerHTML = ""; return; }
       const cols = colourMeta();
       const names = runs.map((run) => { const p = document.querySelector('.mx-pick[data-run="' + run + '"]'); return p ? (p.dataset.contractor || "—") : "—"; });
-      let backupGrand = 0, combinedGrand = 0;
+      let embGrand = 0, backupGrand = 0, combinedGrand = 0;
       const cells = cols.map((c) => {
         let emb = 0, backup = 0;
         runs.forEach((run) => { const t = (LAST_RUNTOTALS[run] || {})[c.cid] || { emb: 0, backup: 0 }; emb += t.emb; backup += t.backup; });
-        backupGrand += backup; combinedGrand += (emb + backup);
+        embGrand += emb; backupGrand += backup; combinedGrand += (emb + backup);
         return { emb: emb, backup: backup };
       });
       const label = names.length === 1 ? names[0] : names.length + " contractors";
       let h = '<div class="mx-sel-head">🧮 Selected: <b>' + escHtml(label) + "</b>";
-      h += '<span class="mx-sel-grand">Back Up total <b>' + fmt(round2(backupGrand)) + " m</b> · EMB + Back Up <b>" + fmt(round2(combinedGrand)) + " m</b></span></div>";
+      h += '<span class="mx-sel-grand">EMB <b>' + fmt(round2(embGrand)) + " m</b> · Back Up <b>" + fmt(round2(backupGrand)) + " m</b> · EMB + Back Up <b>" + fmt(round2(combinedGrand)) + " m</b></span></div>";
       h += '<div class="table-scroll"><table class="mx-sel-table"><thead><tr><th>Cloth to send</th>';
       cols.forEach((c) => { h += '<th><span class="mx-sel-sw" style="background:' + c.hex + '"></span>' + escHtml(c.name || "—") + "</th>"; });
       h += "<th>Total</th></tr></thead><tbody>";
+      h += '<tr class="mx-sel-emb"><td>EMB</td>';
+      cells.forEach((t) => { h += "<td>" + fmt(round2(t.emb)) + "</td>"; });
+      h += "<td><b>" + fmt(round2(embGrand)) + "</b></td></tr>";
       h += '<tr class="mx-sel-bk"><td>Back Up</td>';
       cells.forEach((t) => { h += "<td>" + fmt(round2(t.backup)) + "</td>"; });
       h += "<td><b>" + fmt(round2(backupGrand)) + "</b></td></tr>";
@@ -394,12 +399,18 @@
       box.innerHTML = h;
       box.style.display = "";
     }
-    // Multi-select: ticking any row toggles all of that contractor's rows; other contractors stay.
+    // One contractor at a time: checking a box locks selection to that contractor and disables
+    // every OTHER contractor's boxes (this contractor's own rows stay tickable). Uncheck all → re-enable all.
+    function applyContractorLock() {
+      const anyChecked = document.querySelector(".mx-pick:checked");
+      const active = anyChecked ? anyChecked.dataset.contractor : null;
+      document.querySelectorAll(".mx-pick").forEach((cb) => {
+        cb.disabled = (active !== null && cb.dataset.contractor !== active);
+      });
+    }
     document.addEventListener("change", (e) => {
-      const box = e.target.closest(".mx-pick");
-      if (!box) return;
-      const run = box.dataset.run, checked = box.checked;
-      document.querySelectorAll('.mx-pick[data-run="' + run + '"]').forEach((cb) => { cb.checked = checked; });
+      if (!e.target.closest(".mx-pick")) return;
+      applyContractorLock();
       markSelectedRows();
       updateSelSummary();
     });
@@ -442,16 +453,7 @@
     document.addEventListener("input", (e) => { if (e.target.closest("#matrixForm")) recompute(); });
     document.addEventListener("change", (e) => { if (e.target.closest("#matrixForm")) recompute(); });
 
-    // checkboxes: toggle the EMB/Back Up total rows and the combined total row
-    function wireToggle(id, selector) {
-      const cb = document.getElementById(id);
-      if (!cb) return;
-      const t = () => document.querySelectorAll(selector).forEach((r) => { r.style.display = cb.checked ? "" : "none"; });
-      cb.addEventListener("change", t);
-      t();
-    }
-    wireToggle("showEmbBackup", ".mx-total-emb-row, .mx-total-backup-row");
-    wireToggle("showCombined", ".mx-combined-row");
+    // (Inline per-contractor total rows stay hidden — totals for ticked contractors show in the summary table below.)
     recompute();
 
     // Save current sheet (incl. live edits) as a named pattern

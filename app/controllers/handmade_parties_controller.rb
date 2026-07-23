@@ -34,6 +34,6 @@ class HandmadePartiesController < ApplicationController
     redirect_to handmade_parties_path, alert: "View-only users cannot edit." if current_user.view_only?
   end
   def party_params
-    params.require(:handmade_party).permit(:name, :contact, :email, :address, :city, :notes, :image)
+    params.require(:handmade_party).permit(:name, :contact, :email, :address, :city, :notes, :image, :handmade_rate)
   end
 end

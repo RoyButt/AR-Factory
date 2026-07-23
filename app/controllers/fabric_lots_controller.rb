@@ -45,10 +45,20 @@ class FabricLotsController < ApplicationController
       per_colour = @colours.map { |c| ls.sum { |l| l.emb_for(c.id) }.round(2) }
       { contractor: contractor, per_colour: per_colour, total: per_colour.sum.round(2) }
     end
-    # Embroidery program: head → [{ design, count of lines }]
-    @program = lines.group_by(&:heads).sort.map do |head, ls|
-      designs = ls.group_by { |l| l.design_variant.design.code }.map { |code, dls| { design: code, count: dls.size } }
-      { head: head, designs: designs.sort_by { |d| d[:design].to_s } }
+    # Embroidery program rows, first column = machine head. Complete laats (every colour Full)
+    # are aggregated per head as "N laat complete"; partial laats list their per-colour suits.
+    @program = []
+    lines.group_by { |l| l.design_variant.design.code }.sort_by { |code, _| code.to_s }.each do |code, dls|
+      complete = dls.select { |l| @colours.all? { |c| l.factor_for(c.id) == 1.0 } }
+      complete.group_by(&:heads).sort.each do |head, hls|
+        # every colour full → head suits per colour, across all colours, for each complete laat
+        suits = hls.size * head * @colours.size
+        @program << { head: head, design: code, complete: hls.size, colours: nil, suits: suits }
+      end
+      (dls - complete).each do |l|
+        cols = @colours.filter_map { |c| f = l.factor_for(c.id); next if f <= 0; { name: c.name, hex: c.swatch, suits: (l.heads * f).round } }
+        @program << { head: l.heads, design: code, complete: nil, colours: cols, suits: cols.sum { |c| c[:suits] } }
+      end
     end
     render layout: "print"
   end
