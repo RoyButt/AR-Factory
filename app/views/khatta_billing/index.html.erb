@@ -1,0 +1,297 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>Khatta (Billing)</h1>
+        <p class="page-sub">Contractor ledger — embroidery bills &amp; claims auto-fetched from Khatta (Emb), payments recorded here, running balance still to pay.</p>
+      </div>
+      <div class="row-actions"><%= link_to "← Khatta (Emb)", khatta_embs_path, class: "btn-soft" %></div>
+    </div>
+
+    <div class="ke-stats" style="grid-template-columns:repeat(6,1fr)">
+      <div class="ke-stat"><span>Contractors</span><b id="stContractors"><%= @ledgers.size %></b></div>
+      <div class="ke-stat ke-stat-bill"><span>Total Charges</span><b id="stCharge"><%= rs(@tot_charge) %></b></div>
+      <div class="ke-stat ke-stat-claim"><span>Total Claim</span><b id="stClaim">− <%= rs(@tot_claim) %></b></div>
+      <div class="ke-stat ke-stat-claim"><span>Total Cloth Claim</span><b id="stCloth">− <%= rs(@tot_cloth) %></b></div>
+      <div class="ke-stat ke-stat-ok"><span>Total Paid</span><b id="stPaid">− <%= rs(@tot_paid) %></b></div>
+      <div class="ke-stat ke-stat-warn"><span>Balance to Pay</span><b id="stBalance"><%= rs(@tot_balance) %></b></div>
+    </div>
+
+    <% unless @ledgers.empty? %>
+      <div class="panel" style="padding:0">
+        <div class="lot-filter">
+          <div class="md-search-bar">
+            <span class="md-search-ic">⌕</span>
+            <input type="text" id="kbSearch" class="md-search" placeholder="Search contractor…">
+          </div>
+          <label class="lot-filter-field"><span>Contractor</span>
+            <select id="kbContractor"><option value="">All</option><% @parties.each do |p| %><option value="<%= p %>"><%= p %></option><% end %></select>
+          </label>
+          <label class="lot-filter-field"><span>Status</span>
+            <select id="kbStatus"><option value="">All</option><option value="owe">To Pay</option><option value="adv">Advance</option><option value="settled">Settled</option></select>
+          </label>
+          <span class="md-search-count" id="kbCount"></span>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @ledgers.empty? %>
+      <div class="panel"><p class="muted" style="padding:24px;text-align:center">No billing yet — record returns in <%= link_to "Khatta (Emb)", khatta_embs_path %>.</p></div>
+    <% end %>
+
+    <% @ledgers.each do |l| %>
+      <% bal = l[:balance] %>
+      <div class="panel ke-laat kb-ledger" data-contractor="<%= l[:contractor] %>" data-name="<%= l[:contractor].to_s.downcase %>" data-status="<%= bal > 0 ? 'owe' : (bal < 0 ? 'adv' : 'settled') %>" data-charge="<%= l[:charge] %>" data-claim="<%= l[:claim] %>" data-cloth="<%= l[:cloth] %>" data-paid="<%= l[:paid] %>" data-balance="<%= l[:balance] %>">
+        <div class="ke-laat-head">
+          <div class="ke-laat-title">
+            <span class="ke-laat-badge"><%= l[:contractor] %></span>
+            <% if l[:pending_suits] > 0 %><span class="ke-laat-meta"><%= l[:pending_suits] %> suits still out (not yet billed)</span><% end %>
+          </div>
+          <div class="ke-laat-tot">
+            <span>Charges <b><%= rs(l[:charge]) %></b></span>
+            <% if l[:claim] > 0 %><span class="claim">Claim <b>− <%= rs(l[:claim]) %></b></span><% end %>
+            <% if l[:cloth] > 0 %><span class="claim">Cloth <b>− <%= rs(l[:cloth]) %></b></span><% end %>
+            <span class="ok">Paid <b>− <%= rs(l[:paid]) %></b></span>
+            <span class="kb-bal <%= bal > 0 ? 'owe' : (bal < 0 ? 'adv' : 'settled') %>">
+              <%= bal > 0 ? "To Pay" : (bal < 0 ? "Advance" : "Settled") %> <b><%= rs(bal.abs) %></b>
+            </span>
+            <% unless current_user.view_only? %>
+              <button type="button" class="btn-sm edit kb-add" data-contractor="<%= l[:contractor] %>">＋ Payment</button>
+            <% end %>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="utable kb-table" data-no-coltoggle>
+            <thead><tr>
+              <th>Date</th>
+              <th>Details</th>
+              <th class="num">Charge</th>
+              <th class="num">Claim</th>
+              <th class="num">Cloth Claim</th>
+              <th class="num">Paid</th>
+              <th class="num">Balance</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              <% l[:entries].each do |e| %>
+                <tr class="kb-<%= e[:kind] %>">
+                  <td><%= e[:date]&.strftime("%d %b %Y") || "—" %></td>
+                  <td><%= e[:detail] %></td>
+                  <td class="num">
+                    <% if e[:kind] == "bill" %>
+                      <span class="kb-amt"><%= rs(e[:charge]) %><% if e[:overridden] %> <span class="kb-edited" title="Manually edited">✎</span><% end %></span>
+                      <% unless current_user.view_only? %><button type="button" class="kb-amt-edit" title="Edit charge" data-emb="<%= e[:emb_id] %>" data-field="bill" data-amount="<%= e[:charge] %>">✎</button><% end %>
+                    <% end %>
+                  </td>
+                  <td class="num kb-claimcol">
+                    <% if e[:kind] == "claim" %>
+                      <span class="kb-amt">− <%= rs(e[:claim]) %><% if e[:overridden] %> <span class="kb-edited" title="Manually edited">✎</span><% end %></span>
+                      <% unless current_user.view_only? %><button type="button" class="kb-amt-edit" title="Edit claim" data-emb="<%= e[:emb_id] %>" data-field="claim" data-amount="<%= e[:claim] %>">✎</button><% end %>
+                    <% end %>
+                  </td>
+                  <td class="num kb-claimcol"><%= e[:cloth].positive? ? "− " + rs(e[:cloth]) : "" %></td>
+                  <td class="num kb-credit"><%= e[:paid].positive? ? "− " + rs(e[:paid]) : "" %></td>
+                  <td class="num"><b><%= rs(e[:balance]) %></b></td>
+                  <td class="num">
+                    <% if e[:kind] == "payment" %>
+                      <span class="kb-actions">
+                        <% if e[:payment]&.proof&.attached? %>
+                          <%= link_to "📎", rails_blob_path(e[:payment].proof, disposition: "inline"), target: "_blank", class: "kb-proof", title: "View payment proof" %>
+                        <% end %>
+                        <% unless current_user.view_only? %>
+                          <button type="button" class="kb-edit" title="Edit payment"
+                                  data-id="<%= e[:id] %>" data-contractor="<%= l[:contractor] %>"
+                                  data-amount="<%= e[:paid] %>" data-date="<%= e[:payment]&.paid_on&.strftime('%Y-%m-%d') %>"
+                                  data-method="<%= e[:payment]&.method_detail %>" data-notes="<%= e[:payment]&.notes %>">✎</button>
+                          <%= button_to "✕", remove_khatta_payment_path(id: e[:id]), method: :delete, class: "kb-del",
+                                form: { style: "display:inline" }, title: "Remove payment",
+                                data: { turbo_confirm: "Remove this payment of #{rs(e[:paid])}?" } %>
+                        <% end %>
+                      </span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+              <tr class="tot">
+                <td></td><td><b>Total</b></td>
+                <td class="num"><b><%= rs(l[:charge]) %></b></td>
+                <td class="num"><b><%= l[:claim] > 0 ? "− " + rs(l[:claim]) : rs(0) %></b></td>
+                <td class="num"><b><%= l[:cloth] > 0 ? "− " + rs(l[:cloth]) : rs(0) %></b></td>
+                <td class="num"><b><%= l[:paid] > 0 ? "− " + rs(l[:paid]) : rs(0) %></b></td>
+                <td class="num"><b><%= rs(l[:balance]) %></b></td><td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="kbModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box ke-manage-box" style="max-width:460px">
+      <button type="button" class="ke-modal-x" id="kbClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title" id="kbTitle">Record payment</div>
+      <%= form_with url: add_khatta_payment_path, method: :post, local: true, html: { id: "kbForm", multipart: true } do %>
+        <%= hidden_field_tag :contractor, "", id: "kb_contractor" %>
+        <%= hidden_field_tag :payment_id, "", id: "kb_payment_id" %>
+        <div class="kb-form">
+          <label class="ke-fld">Amount (Rs)
+            <%= number_field_tag :amount, nil, min: 1, step: 0.01, class: "no-spin", required: true, placeholder: "e.g. 200000" %></label>
+          <label class="ke-fld">Date
+            <%= date_field_tag :paid_on, Date.current %></label>
+          <label class="ke-fld">Method
+            <%= text_field_tag :method_detail, "online", placeholder: "online / cash", data: { no_ss: "1" } %></label>
+          <label class="ke-fld">Notes
+            <%= text_field_tag :notes, nil, placeholder: "optional", data: { no_ss: "1" } %></label>
+          <label class="ke-fld">Payment proof <span class="muted" style="font-weight:400;text-transform:none">(image or PDF, optional)</span>
+            <%= file_field_tag :proof, accept: "image/*,application/pdf" %></label>
+          <%= submit_tag "Add payment", class: "btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div id="kbAmtModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box ke-manage-box" style="max-width:400px">
+      <button type="button" class="ke-modal-x" id="kbAmtClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title" id="kbAmtTitle">Edit amount</div>
+      <%= form_with url: set_khatta_amount_path, method: :post, local: true, id: "kbAmtForm" do %>
+        <%= hidden_field_tag :emb_id, "", id: "kba_emb" %>
+        <%= hidden_field_tag :field, "", id: "kba_field" %>
+        <div class="kb-form">
+          <label class="ke-fld">Amount (Rs)
+            <%= number_field_tag :amount, nil, step: 0.01, min: 0, class: "no-spin", id: "kba_amount" %></label>
+          <span class="muted" style="font-size:12px">Leave empty to reset to the fetched (computed) value.</span>
+          <%= submit_tag "Save amount", class: "btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    var modal = document.getElementById("kbModal");
+    function closeModal() { if (modal) modal.classList.remove("open"); }
+    function setField(name, val) { var el = modal && modal.querySelector('[name="' + name + '"]'); if (el) el.value = val || ""; }
+    function setSubmitLabel(txt) {
+      var s = modal && modal.querySelector('input[type=submit], button[type=submit]');
+      if (!s) return;
+      if (s.tagName === "INPUT") s.value = txt; else s.textContent = txt;
+    }
+    function wire() {
+      // ＋ Payment → new
+      document.querySelectorAll(".kb-add").forEach(function (b) {
+        if (b._w || !modal) return; b._w = 1;
+        b.addEventListener("click", function () {
+          setField("contractor", b.dataset.contractor);
+          setField("payment_id", "");
+          setField("amount", ""); setField("paid_on", ""); setField("method_detail", "online"); setField("notes", "");
+          document.getElementById("kbTitle").textContent = "Record payment — " + b.dataset.contractor;
+          setSubmitLabel("Add payment");
+          modal.classList.add("open");
+          var a = modal.querySelector('input[name="amount"]'); if (a) a.focus();
+        });
+      });
+      // ✎ Edit → prefill an existing payment
+      document.querySelectorAll(".kb-edit").forEach(function (b) {
+        if (b._w || !modal) return; b._w = 1;
+        b.addEventListener("click", function () {
+          setField("contractor", b.dataset.contractor);
+          setField("payment_id", b.dataset.id);
+          setField("amount", b.dataset.amount);
+          setField("paid_on", b.dataset.date);
+          setField("method_detail", b.dataset.method);
+          setField("notes", b.dataset.notes);
+          document.getElementById("kbTitle").textContent = "Edit payment — " + b.dataset.contractor;
+          setSubmitLabel("Save payment");
+          modal.classList.add("open");
+          var a = modal.querySelector('input[name="amount"]'); if (a) a.focus();
+        });
+      });
+      // ✎ Edit charge/claim → amount override modal
+      var amtModal = document.getElementById("kbAmtModal");
+      document.querySelectorAll(".kb-amt-edit").forEach(function (b) {
+        if (b._w || !amtModal) return; b._w = 1;
+        b.addEventListener("click", function () {
+          document.getElementById("kba_emb").value = b.dataset.emb;
+          document.getElementById("kba_field").value = b.dataset.field;
+          document.getElementById("kba_amount").value = b.dataset.amount;
+          document.getElementById("kbAmtTitle").textContent = (b.dataset.field === "claim" ? "Edit claim" : "Edit charge");
+          amtModal.classList.add("open");
+          document.getElementById("kba_amount").focus();
+        });
+      });
+      wireFilters();
+    }
+    function wireFilters() {
+      var q = document.getElementById("kbSearch"), c = document.getElementById("kbContractor"),
+          st = document.getElementById("kbStatus"), count = document.getElementById("kbCount");
+      if (!q || q._w) return; q._w = 1;
+      var panels = Array.prototype.slice.call(document.querySelectorAll(".kb-ledger"));
+      var money = function (n) { return "Rs " + Math.round(n).toLocaleString(); };
+      function setStat(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; }
+      function apply() {
+        var term = q.value.trim().toLowerCase(), cc = c.value, ss = st.value, n = 0;
+        var sc = 0, scl = 0, sclo = 0, sp = 0, sb = 0;
+        panels.forEach(function (p) {
+          var ok = (!term || (p.dataset.name || "").indexOf(term) >= 0) &&
+                   (!cc || p.dataset.contractor === cc) && (!ss || p.dataset.status === ss);
+          p.style.display = ok ? "" : "none";
+          if (ok) { n++; sc += +p.dataset.charge || 0; scl += +p.dataset.claim || 0; sclo += +p.dataset.cloth || 0; sp += +p.dataset.paid || 0; sb += +p.dataset.balance || 0; }
+        });
+        // summary reflects the filtered contractors
+        setStat("stContractors", n);
+        setStat("stCharge", money(sc));
+        setStat("stClaim", "− " + money(scl));
+        setStat("stCloth", "− " + money(sclo));
+        setStat("stPaid", "− " + money(sp));
+        setStat("stBalance", money(sb));
+        count.textContent = (term || cc || ss) ? (n + " of " + panels.length) : "";
+      }
+      [q, c, st].forEach(function (el) { el.addEventListener("input", apply); el.addEventListener("change", apply); });
+      apply();
+    }
+    if (modal) {
+      document.getElementById("kbClose").addEventListener("click", closeModal);
+      modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+    }
+    var amtModalEl = document.getElementById("kbAmtModal");
+    function closeAmt() { if (amtModalEl) amtModalEl.classList.remove("open"); }
+    if (amtModalEl) {
+      document.getElementById("kbAmtClose").addEventListener("click", closeAmt);
+      amtModalEl.addEventListener("click", function (e) { if (e.target === amtModalEl) closeAmt(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeAmt(); });
+    }
+
+    // AJAX: saves update the page without a full refresh
+    function swapMain(html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      var nm = doc.querySelector(".main"), cm = document.querySelector(".main");
+      if (!nm || !cm) { window.location.reload(); return; }
+      var y = window.scrollY;
+      cm.innerHTML = nm.innerHTML; wire(); closeModal(); closeAmt();
+      var fl = doc.querySelector("[data-flash]");
+      if (fl) { document.body.appendChild(fl); setTimeout(function () { fl.classList.add("flash-hide"); }, 2600); setTimeout(function () { fl.remove(); }, 3100); }
+      window.scrollTo(0, y);
+    }
+    document.addEventListener("submit", function (e) {
+      var form = e.target.closest("form");
+      if (!form || (form.getAttribute("action") || "").indexOf("khatta_billing") < 0) return;
+      e.preventDefault();
+      var msg = (e.submitter && (e.submitter.getAttribute("data-turbo-confirm") || e.submitter.getAttribute("data-confirm"))) ||
+                form.getAttribute("data-turbo-confirm") || form.getAttribute("data-confirm");
+      if (msg && !window.confirm(msg)) return;
+      var fd = new FormData(form);
+      if (e.submitter && e.submitter.name) fd.append(e.submitter.name, e.submitter.value);
+      fetch(form.getAttribute("action"), { method: "post", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) { return r.text(); }).then(swapMain).catch(function () { window.location.reload(); });
+    });
+
+    wire();
+  })();
+</script>

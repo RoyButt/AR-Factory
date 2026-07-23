@@ -1,0 +1,139 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <h1>Dashboard</h1>
+      <% unless current_user.view_only? %>
+        <%= link_to "＋ New Lot", new_production_lot_path, class: "btn-primary" %>
+      <% end %>
+    </div>
+
+    <div class="cards">
+      <% @kpis.each do |k| %>
+        <div class="card">
+          <div class="k"><%= k[:label] %></div>
+          <div class="v"><%= k[:value] %></div>
+          <div class="s"><%= k[:sub] %></div>
+        </div>
+      <% end %>
+    </div>
+
+    <% lots = @lots.sort_by { |l| l.has_issues? ? 0 : 1 } %>
+    <% attention = @lots.select(&:has_issues?) %>
+
+    <div class="panel">
+      <div class="filter-panel-head">
+        <h2>Production Pipeline</h2>
+        <span class="muted">EMB → Production → CutWork → OverLock → HandMade → Press → Out</span>
+      </div>
+
+      <% if attention.any? %>
+        <div class="attention-bar">
+          <b><%= attention.size %></b> lot<%= "s" unless attention.size == 1 %> need attention —
+          short deliveries &amp; pending payments are highlighted below.
+        </div>
+      <% end %>
+
+      <% if lots.any? %>
+        <div class="track">
+          <div class="track-tabs" role="tablist">
+            <% lots.each_with_index do |lot, i| %>
+              <button type="button" class="track-tab <%= 'active' if i.zero? %>" data-tab="lot-<%= lot.id %>">
+                <span class="tt-design">
+                  <%= lot.design %>
+                  <% if lot.has_issues? %><span class="tt-issue"><%= lot.issues.size %></span><% end %>
+                </span>
+                <span class="tt-sub"><%= lot.emb_name %> · Laat #<%= lot.laat_number %></span>
+                <span class="tt-bar"><i style="width: <%= lot.progress_pct %>%"></i></span>
+              </button>
+            <% end %>
+          </div>
+
+          <% lots.each_with_index do |lot, i| %>
+            <div class="track-panel <%= 'active' if i.zero? %>" id="lot-<%= lot.id %>">
+
+              <% issues = lot.issues %>
+              <% if issues.any? %>
+                <div class="issues-box">
+                  <div class="issues-head">⚠ <%= issues.size %> issue<%= "s" unless issues.size == 1 %> need attention</div>
+                  <% issues.each do |is| %>
+                    <div class="issue-row sev-<%= is[:severity] %>">
+                      <span class="issue-type"><%= is[:type] %></span>
+                      <span class="issue-label"><%= is[:label] %></span>
+                      <span class="issue-detail"><%= is[:detail] %></span>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="ok-box">✓ No issues — this lot is on track.</div>
+              <% end %>
+
+              <div class="track-meta">
+                <div><span class="tm-label">Lot</span> <b><%= lot.title %></b></div>
+                <div><span class="tm-label">Embroiderer</span> <b><%= lot.emb_name %></b></div>
+                <div><span class="tm-label">Total Suits</span> <b><%= lot.total_suit %></b></div>
+                <div><span class="tm-label">Progress</span> <b><%= lot.progress_pct %>%</b></div>
+                <% unless current_user.view_only? %>
+                  <%= link_to "✎ Edit", edit_production_lot_path(lot), class: "btn-soft", style: "margin-left:auto" %>
+                <% end %>
+              </div>
+
+              <div class="pipeline">
+                <% stages = lot.pipeline %>
+                <% stages.each_with_index do |s, si| %>
+                  <div class="stage stage-<%= s[:status] %> <%= "stage-pay" if s[:kind] == :payment %> <%= "stage-origin" if s[:kind] == :origin %>">
+                    <div class="stage-top">
+                      <span class="stage-dot"></span>
+                      <span class="stage-title"><%= s[:title] %></span>
+                    </div>
+                    <% if s[:sub] %><div class="stage-sub"><%= s[:sub] %></div><% end %>
+                    <div class="stage-value"><%= s[:value] || "—" %></div>
+
+                    <% if s[:kind] == :handoff && (s[:sent] || s[:back]) %>
+                      <div class="stage-qty">
+                        Sent <b><%= s[:sent] || "—" %></b> · Back
+                        <b class="<%= 'short-num' if s[:short] %>"><%= s[:back] || "—" %></b>
+                      </div>
+                    <% end %>
+
+                    <% if (ac = lot.attachment_count(s[:key])) > 0 %>
+                      <span class="stage-attach">📎 <%= ac %></span>
+                    <% end %>
+
+                    <% if s[:status] == :shortfall %>
+                      <span class="pay-badge due">−<%= s[:short] %> short</span>
+                    <% elsif s[:kind] == :payment %>
+                      <span class="pay-badge <%= s[:paid] ? 'paid' : 'due' %>"><%= s[:paid] ? "Paid" : "Pending" %></span>
+                    <% elsif s[:status] == :done %>
+                      <span class="pay-badge done">Done</span>
+                    <% elsif s[:status] == :current %>
+                      <span class="pay-badge current">In progress</span>
+                    <% else %>
+                      <span class="pay-badge waiting">Waiting</span>
+                    <% end %>
+                  </div>
+                  <% unless si == stages.size - 1 %><span class="stage-arrow">›</span><% end %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="modlist"><p class="muted">No production lots yet. Click “New Lot” to add one.</p></div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    document.querySelectorAll(".track-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const id = tab.dataset.tab;
+        document.querySelectorAll(".track-tab").forEach((t) => t.classList.toggle("active", t === tab));
+        document.querySelectorAll(".track-panel").forEach((p) => p.classList.toggle("active", p.id === id));
+      });
+    });
+  })();
+</script>

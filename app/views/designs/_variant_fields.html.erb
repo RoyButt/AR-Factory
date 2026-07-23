@@ -1,0 +1,32 @@
+<div class="variant-card">
+  <button type="button" class="v-remove" title="Remove variant">✕</button>
+  <div class="vc-basics">
+    <div class="vc-f"><label>Head Size</label><%= vf.text_field :size, placeholder: "24", required: true %></div>
+    <div class="vc-f"><label>Repeats</label><%= vf.number_field :repeats_per_color, step: 0.5, placeholder: "0.0", required: true %></div>
+  </div>
+
+  <div class="vc-comps-label">Components</div>
+  <div class="vc-comps">
+    <div class="vc-f"><label>Tr</label><%= vf.number_field :trousers, step: 0.5, placeholder: "0.0", required: true %></div>
+    <%= vf.hidden_field :back, value: (vf.object.back || 0) %>
+    <div class="vc-f"><label>Bazoo</label><%= vf.number_field :bazoo, step: 0.5, placeholder: "0.0", required: true %></div>
+    <div class="vc-f"><label>Kali</label><%= vf.number_field :kali, step: 0.5, placeholder: "0.0", required: true %></div>
+    <div class="vc-f removable"><button type="button" class="vcf-remove" title="Remove field">✕</button><label>Falas</label><%= vf.number_field :falas, step: 0.5, placeholder: "0.0", required: true %></div>
+
+    <%= vf.fields_for :variant_components do |cf| %>
+      <%= render "component_fields", cf: cf %>
+    <% end %>
+  </div>
+
+  <template class="comp-template">
+    <%= vf.fields_for :variant_components, VariantComponent.new, child_index: "NEW_COMP" do |cf| %>
+      <%= render "component_fields", cf: cf %>
+    <% end %>
+  </template>
+  <div class="variant-footer">
+    <button type="button" class="add-comp btn-soft btn-xs" title="Adds to the backup formula">+ component</button>
+    <div class="variant-calc">EMB <b class="vc-emb">–</b> &middot; Backup <b class="vc-backup">–</b> &middot; per-pc <b class="vc-perpc">–</b></div>
+  </div>
+
+  <%= vf.hidden_field :_destroy, value: 0, class: "v-destroy" %>
+</div>

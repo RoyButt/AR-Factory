@@ -1,0 +1,7 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top"><h1>Edit Handmade Party — <%= @party.name %></h1><%= link_to "← All parties", handmade_parties_path, class: "btn-soft" %></div>
+    <%= render "form" %>
+  </div>
+</div>

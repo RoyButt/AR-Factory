@@ -1,0 +1,268 @@
+<% cut = @stage == "cutwork" %>
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1><%= cut ? "✂ Cutwork Progress" : "🖐 Handmade Progress" %></h1>
+        <p class="page-sub">Designs sent here when a Production Sheet is marked <b>Completed</b> and the design's cost card has <%= cut ? "Cutwork" : "Handmade" %> &gt; 0.</p></div>
+    </div>
+
+    <div class="ke-stats" style="grid-template-columns:repeat(2,1fr)">
+      <div class="ke-stat"><span>Items</span><b><%= @items.size %></b></div>
+      <div class="ke-stat ke-stat-bill"><span>Total Suits</span><b><%= number_with_delimiter(@total_suits) %></b></div>
+    </div>
+
+    <% if cut %>
+      <div class="panel">
+        <div class="tab-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Date</th><th>Laat</th><th>Design</th><th>Colours</th><th class="num">Suits</th><th class="num">Cutwork /suit</th><th class="num">Adjustment</th><th class="num">Rate /suit</th><th class="num">Amount</th><th>Cutwork Party</th></tr></thead>
+            <tbody>
+              <% @items.each do |it| %>
+                <% base = @cut_rates[it.design_code].to_f %>
+                <% eff  = (base + it.adjustment.to_f).round(2) %>
+                <tr>
+                  <td><%= it.production_sheet&.completed_at&.strftime("%d %b %Y") || it.created_at.strftime("%d %b %Y") %></td>
+                  <td><% if it.laat %><b>#<%= it.laat %></b><% else %>—<% end %></td>
+                  <td><b><%= it.design_code %></b></td>
+                  <td><% cols = it.colours %><% if cols.any? %><span class="stk-swatches"><% cols.each do |c| %><span class="stk-sw" style="background:<%= c[:hex] %>" title="<%= c[:name] %>"></span><% end %></span><% else %>—<% end %></td>
+                  <td class="num"><b><%= it.suits %></b></td>
+                  <td class="num"><%= rs(base) %></td>
+                  <td class="num">
+                    <% if current_user.view_only? %><%= it.adjustment.to_f.zero? ? "—" : rs(it.adjustment) %>
+                    <% else %>
+                      <%= form_with url: set_adjustment_progress_path(it), method: :post, local: true, class: "cwadj-form" do %>
+                        <span class="cwadj-wrap">Rs <input type="number" step="0.01" name="adjustment" value="<%= it.adjustment.to_f %>" class="cwadj-inp no-spin" data-no-ss="1" onchange="this.form.requestSubmit()" title="+/− on the cutwork rate for this row only"></span>
+                      <% end %>
+                    <% end %>
+                  </td>
+                  <td class="num"><b><%= rs(eff) %></b></td>
+                  <td class="num"><b><%= rs(it.suits.to_i * eff) %></b></td>
+                  <td>
+                    <% if current_user.view_only? %><%= it.cutwork_party&.name || "—" %>
+                    <% else %>
+                      <% sel_id = it.cutwork_party_id || @default_cw_id %>
+                      <%= form_with url: assign_progress_path(it), method: :post, local: true, class: "cwp-assign" do %>
+                        <select name="cutwork_party_id" data-no-ss="1" onchange="this.form.requestSubmit()">
+                          <% @cutwork_parties.each do |cp| %><option value="<%= cp.id %>" <%= "selected" if sel_id == cp.id %>><%= cp.name %></option><% end %>
+                          <option value="">— Unassign —</option>
+                        </select>
+                      <% end %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+              <% if @items.empty? %><tr><td colspan="10" class="muted" style="text-align:center;padding:24px">Nothing here yet.</td></tr><% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% else %>
+      <%# HANDMADE: 2 tabs — Fresh Stock / Generated Pass %>
+      <div class="ps-tabs">
+        <button type="button" class="ps-tab active" data-tab="fresh">Fresh Stock <span class="ps-tabcount"><%= @fresh.size %></span></button>
+        <button type="button" class="ps-tab" data-tab="passed">Generated Pass <span class="ps-tabcount"><%= @passed.size %></span></button>
+      </div>
+
+      <div class="panel ps-tabpanel" data-tabpanel="fresh">
+        <div class="tab-scroll"><table class="utable" data-no-coltoggle>
+          <thead><tr><th>Date</th><th>Laat</th><th>Design</th><th>Suits by colour</th><th class="num">Total suits</th><th class="num">Handwork /suit</th><th style="text-align:right" data-lock>Action</th></tr></thead>
+          <tbody>
+            <% @fresh.each do |it| %>
+              <% cs = it.color_suits %>
+              <tr>
+                <td><%= it.created_at.strftime("%d %b %Y") %></td>
+                <td><% if it.laat %><b>#<%= it.laat %></b><% else %>—<% end %></td>
+                <td><b><%= it.design_code %></b></td>
+                <td>
+                  <% if cs.any? %>
+                    <span class="hp-colcounts">
+                      <% cs.each do |c| %>
+                        <span class="hp-colcount"><span class="stk-sw" style="background:<%= c[:hex] %>" title="<%= c[:name] %>"></span><%= c[:name].presence || "—" %> <b><%= c[:net] %></b><% if c[:claimed] > 0 %><span class="hp-claimed" title="<%= c[:claimed] %> claimed/ruined">−<%= c[:claimed] %></span><% end %></span>
+                      <% end %>
+                    </span>
+                  <% else %>—<% end %>
+                </td>
+                <td class="num"><b><%= cs.any? ? it.net_suits : it.suits %></b></td>
+                <td class="num"><%= rs(@hand_rates[it.design_code].to_f) %></td>
+                <td style="text-align:right">
+                  <% unless current_user.view_only? %>
+                    <button type="button" class="btn-sm btn-primary hp-gen" data-id="<%= it.id %>" data-design="<%= it.design_code %>" data-laat="<%= it.laat %>" data-suits="<%= it.suits %>" data-rate="<%= @hand_rates[it.design_code].to_f %>">🎫 Generate token</button>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+            <% if @fresh.empty? %><tr><td colspan="7" class="muted" style="text-align:center;padding:24px">No fresh handmade stock — complete a Production Sheet whose designs have Handmade &gt; 0.</td></tr><% end %>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="panel ps-tabpanel" data-tabpanel="passed" style="display:none">
+        <div class="tab-scroll"><table class="utable" data-no-coltoggle>
+          <thead><tr><th>Pass</th><th>Date</th><th>Party</th><th>Laat</th><th>Design</th><th class="num">Suits</th><th class="num">Rate/suit</th><th class="num">Adjustment</th><th class="num">Eff /suit</th><th class="num">Amount</th><th style="text-align:right" data-lock>Print</th></tr></thead>
+          <tbody>
+            <% @passed.each do |it| %>
+              <% hp = it.handmade_pass %>
+              <tr>
+                <td><b><%= hp.token %></b></td>
+                <td><%= hp.pass_on&.strftime("%d %b %Y") %></td>
+                <td><%= hp.handmade_party&.name || "—" %></td>
+                <td><% if hp.laat %>#<%= hp.laat %><% else %>—<% end %></td>
+                <td><b><%= hp.design_code %></b></td>
+                <td class="num"><%= hp.suits %></td>
+                <td class="num"><%= rs(hp.rate) %></td>
+                <td class="num">
+                  <% if current_user.view_only? %><%= hp.adjustment.to_f.zero? ? "—" : rs(hp.adjustment) %>
+                  <% else %>
+                    <%= form_with url: set_pass_adjustment_path(hp), method: :post, local: true, class: "cwadj-form" do %>
+                      <span class="cwadj-wrap">Rs <input type="number" step="0.01" name="adjustment" value="<%= hp.adjustment.to_f %>" class="cwadj-inp no-spin" data-no-ss="1" onchange="this.form.requestSubmit()" title="+/− on the handwork rate for this pass only"></span>
+                    <% end %>
+                  <% end %>
+                </td>
+                <td class="num"><b><%= rs(hp.effective_rate) %></b></td>
+                <td class="num"><b><%= rs(hp.amount) %></b></td>
+                <td style="text-align:right;white-space:nowrap">
+                  <%= link_to "🖨 Open pass", handmade_pass_path(hp), class: "btn-sm edit", target: "_blank" %>
+                  <% unless current_user.view_only? %>
+                    <% cs = it.color_suits %>
+                    <button type="button" class="btn-sm hp-claim" data-id="<%= it.id %>" data-token="<%= hp.token %>" data-design="<%= it.design_code %>" data-rate="<%= @final_rates[it.design_code].to_f %>" data-colours="<%= cs.map { |c| { color_id: c[:color_id], name: c[:name], hex: c[:hex], net: c[:net] } }.to_json %>">⚠ Claim suit</button>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+            <% if @passed.empty? %><tr><td colspan="11" class="muted" style="text-align:center;padding:24px">No passes generated yet.</td></tr><% end %>
+          </tbody>
+        </table></div>
+      </div>
+
+      <% unless current_user.view_only? %>
+        <div id="hpModal" class="ke-modal" aria-hidden="true">
+          <div class="ke-modal-box" style="max-width:460px">
+            <button type="button" class="ke-modal-x" id="hpClose" aria-label="Close">✕</button>
+            <div class="ke-modal-title">🎫 Generate Handmade Pass</div>
+            <div class="ke-modal-msg" id="hpMsg"></div>
+            <form action="#" method="post" id="hpForm">
+              <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+              <div class="kb-form">
+                <label class="ke-fld"><span>Handmade party</span>
+                  <select name="handmade_party_id" data-no-ss="1"><option value="">— select —</option><% @hand_parties.each do |hp| %><option value="<%= hp.id %>"><%= hp.name %></option><% end %></select></label>
+                <label class="ke-fld"><span>Suits</span><%= number_field_tag :suits, nil, min: 1, step: 1, class: "no-spin", id: "hp_suits" %></label>
+                <label class="ke-fld"><span>Date</span><%= date_field_tag :pass_on, Date.current %></label>
+                <div class="scc-rates" style="grid-template-columns:1fr 1fr 1fr">
+                  <label class="ke-fld"><span>Handwork rate</span><span class="scc-rswrap">Rs <input type="number" id="hp_rate" class="no-spin" readonly></span></label>
+                  <label class="ke-fld"><span>Adjustment (+/−)</span><span class="scc-rswrap">Rs <input type="number" name="adjustment" id="hp_adj" step="0.01" value="0" class="no-spin"></span></label>
+                  <label class="ke-fld"><span>Rate/suit</span><span class="scc-rswrap">Rs <input type="number" id="hp_eff" class="no-spin" readonly></span></label>
+                </div>
+                <div class="hp-preview" id="hp_preview"></div>
+                <label class="ke-fld"><span>Notes</span><%= text_field_tag :notes, nil, placeholder: "optional", data: { no_ss: "1" } %></label>
+                <%= submit_tag "Preview & print pass", class: "btn-primary" %>
+              </div>
+            </form>
+          </div>
+        </div>
+        <script>
+          (function () {
+            var m = document.getElementById("hpModal"), form = document.getElementById("hpForm");
+            var suits = document.getElementById("hp_suits"), rate = document.getElementById("hp_rate"),
+                adj = document.getElementById("hp_adj"), eff = document.getElementById("hp_eff"), prev = document.getElementById("hp_preview");
+            var num = function (v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; };
+            function recompute() {
+              var e = num(rate.value) + num(adj.value); eff.value = e;
+              prev.innerHTML = "Total: <b>" + num(suits.value) + " × Rs " + e.toLocaleString() + " = Rs " + (num(suits.value) * e).toLocaleString() + "</b>";
+            }
+            document.querySelectorAll(".hp-gen").forEach(function (b) {
+              b.addEventListener("click", function () {
+                form.setAttribute("action", "/production_progress/" + b.dataset.id + "/generate_pass");
+                document.getElementById("hpMsg").innerHTML = "Design <b>" + b.dataset.design + "</b> · Laat #" + b.dataset.laat;
+                suits.value = b.dataset.suits; rate.value = b.dataset.rate; adj.value = 0; recompute();
+                m.classList.add("open"); document.querySelector('[name="handmade_party_id"]').focus();
+              });
+            });
+            [suits, adj].forEach(function (el) { el.addEventListener("input", recompute); });
+            var close = function () { m.classList.remove("open"); };
+            document.getElementById("hpClose").addEventListener("click", close);
+            m.addEventListener("click", function (e) { if (e.target === m) close(); });
+            document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+          })();
+        </script>
+
+        <%# Claim ruined suits (final step) → charge a production person %>
+        <div id="claimModal" class="ke-modal" aria-hidden="true">
+          <div class="ke-modal-box" style="max-width:480px">
+            <button type="button" class="ke-modal-x" id="claimClose" aria-label="Close">✕</button>
+            <div class="ke-modal-title">⚠ Claim ruined suits</div>
+            <div class="ke-modal-msg" id="claimMsg"></div>
+            <form action="#" method="post" id="claimForm">
+              <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+              <div class="kb-form">
+                <label class="ke-fld"><span>Charge to (production person)</span>
+                  <select name="production_party_id" id="claim_party" data-no-ss="1" required>
+                    <option value="">— select person —</option>
+                    <% @prod_persons.each do |pp| %><option value="<%= pp.id %>"><%= pp.name %></option><% end %>
+                  </select></label>
+                <label class="ke-fld" style="margin-bottom:2px"><span>Ruined suits — enter how many per colour</span></label>
+                <div class="claim-color-list" id="claimColors"></div>
+                <div class="hp-preview" id="claimPreview"></div>
+                <button type="submit" class="btn-primary">Claim &amp; deduct from person</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <script>
+          (function () {
+            var m = document.getElementById("claimModal"); if (!m) return;
+            var form = document.getElementById("claimForm"), list = document.getElementById("claimColors"),
+                prev = document.getElementById("claimPreview"), rate = 0;
+            var num = function (v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; };
+            var esc = function (s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); };
+            function recompute() {
+              var suits = 0; list.querySelectorAll(".claim-suits").forEach(function (i) { suits += num(i.value); });
+              prev.innerHTML = "Claim: <b>" + suits + " × Rs " + rate.toLocaleString() + " = Rs " + (suits * rate).toLocaleString() + "</b> — deducted from the person's account";
+            }
+            document.querySelectorAll(".hp-claim").forEach(function (b) {
+              b.addEventListener("click", function () {
+                form.setAttribute("action", "/production_progress/" + b.dataset.id + "/claim_suit");
+                rate = num(b.dataset.rate);
+                document.getElementById("claimMsg").innerHTML = "Pass <b>" + esc(b.dataset.token) + "</b> · " + esc(b.dataset.design) + " · Rs " + rate.toLocaleString() + "/suit (cost-card final rate)";
+                var cols = []; try { cols = JSON.parse(b.dataset.colours || "[]"); } catch (e) {}
+                list.innerHTML = "";
+                if (!cols.length) list.innerHTML = '<div class="muted" style="font-size:13px;padding:4px 0">No colour breakdown on this laat’s fabric lot.</div>';
+                cols.forEach(function (c) {
+                  var row = document.createElement("div"); row.className = "claim-crow";
+                  row.innerHTML = '<span class="claim-cname"><span class="stk-sw" style="background:' + (c.hex || "#ccc") + '"></span>' + esc(c.name || "—") + ' <span class="muted">(' + c.net + ' left)</span></span>' +
+                    '<input type="hidden" name="claim_colors[][color_id]" value="' + c.color_id + '">' +
+                    '<input type="number" name="claim_colors[][suits]" class="claim-suits no-spin" min="0" max="' + c.net + '" step="1" value="0">';
+                  list.appendChild(row);
+                });
+                document.getElementById("claim_party").value = ""; recompute();
+                m.classList.add("open");
+              });
+            });
+            list.addEventListener("input", recompute);
+            var close = function () { m.classList.remove("open"); };
+            document.getElementById("claimClose").addEventListener("click", close);
+            m.addEventListener("click", function (e) { if (e.target === m) close(); });
+            document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+          })();
+        </script>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<% unless cut %>
+  <script>
+    (function () {
+      var KEY = "tab:" + location.pathname;
+      function activate(tab) {
+        document.querySelectorAll(".ps-tab").forEach(function (x) { x.classList.toggle("active", x.dataset.tab === tab); });
+        document.querySelectorAll(".ps-tabpanel").forEach(function (p) { p.style.display = (p.dataset.tabpanel === tab) ? "" : "none"; });
+      }
+      document.querySelectorAll(".ps-tab").forEach(function (t) {
+        t.addEventListener("click", function () { try { sessionStorage.setItem(KEY, t.dataset.tab); } catch (e) {} activate(t.dataset.tab); });
+      });
+      var saved; try { saved = sessionStorage.getItem(KEY); } catch (e) {}
+      if (saved && document.querySelector('.ps-tab[data-tab="' + saved + '"]')) activate(saved);
+    })();
+  </script>
+<% end %>

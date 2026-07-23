@@ -1,0 +1,21 @@
+<%# args: stage_key (string), lot (ProductionLot) %>
+<div class="attach-block">
+  <div class="attach-label">📎 Attachments — receiving / payment / cloth</div>
+
+  <% if @lot.persisted? && @lot.attachments_for(stage_key).any? %>
+    <div class="attach-list">
+      <% @lot.attachments_for(stage_key).each do |a| %>
+        <div class="attach-item">
+          <%= link_to (a.file.attached? ? a.file.filename.to_s : "file"),
+                      rails_blob_path(a.file, disposition: "attachment"),
+                      target: "_blank", class: "attach-link" %>
+          <label class="attach-del">
+            <%= check_box_tag "remove_attachment_ids[]", a.id %> remove
+          </label>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
+  <input type="file" name="attachments[<%= stage_key %>][]" multiple class="attach-input">
+</div>

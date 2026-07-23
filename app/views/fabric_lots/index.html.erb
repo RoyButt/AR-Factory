@@ -1,0 +1,95 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <h1>Fabric Lots (Laat)</h1>
+      <% unless current_user.view_only? %>
+        <%= link_to "＋ New Fabric Lot", new_fabric_lot_path, class: "btn-primary" %>
+      <% end %>
+    </div>
+
+    <div class="panel">
+      <div class="lot-filter">
+        <div class="md-search-bar">
+          <span class="md-search-ic">⌕</span>
+          <input type="text" id="lotSearch" class="md-search" placeholder="Search lots — Laat #, fabric name, date, status, gazana…">
+        </div>
+        <label class="lot-filter-field">
+          <span>Status</span>
+          <select id="lotStatus">
+            <option value="">All</option>
+            <option value="final">✔ Finalized</option>
+            <option value="draft">🔴 Not finalized</option>
+          </select>
+        </label>
+        <span class="md-search-count" id="lotSearchCount"></span>
+      </div>
+
+      <div class="tab-scroll">
+        <table class="utable">
+          <thead>
+            <tr><th>Laat #</th><th>Fabric Name</th><th>Date</th><th>Status</th><th class="num">Received</th><th class="num">Consumed</th><th class="num">Remaining</th><th style="text-align:right" data-lock>Actions</th></tr>
+          </thead>
+          <tbody>
+            <% @lots.each do |l| %>
+              <% status_txt = l.finalized? ? "Finalized #{l.finalized_pattern.name}" : "Not finalized draft" %>
+              <% search_blob = [l.laat_number, l.line_type, l.lot_date&.strftime("%d %b %Y"), l.lot_date&.strftime("%Y-%m-%d"), status_txt, l.total_received.round, l.total_consumed.round, l.total_remaining.round].compact.join(" ") %>
+              <tr class="lot-row" data-search="<%= search_blob.downcase %>" data-status="<%= l.finalized? ? "final" : "draft" %>">
+                <td><%= link_to "##{l.laat_number}", fabric_lot_path(l), class: "cc-code" %></td>
+                <td><%= l.line_type %></td>
+                <td><%= l.lot_date&.strftime("%d %b %Y") %></td>
+                <td>
+                  <% if l.finalized? %><span class="pill-final">✔ <%= l.finalized_pattern.name %></span>
+                  <% else %><span class="pill-draft">🔴 Not finalized</span><% end %>
+                </td>
+                <td class="num"><%= number_with_delimiter(l.total_received.round) %></td>
+                <td class="num"><%= number_with_delimiter(l.total_consumed.round) %></td>
+                <td class="num"><b><%= number_with_delimiter(l.total_remaining.round) %></b></td>
+                <td>
+                  <div class="row-actions">
+                    <%= link_to "View", fabric_lot_path(l), class: "btn-sm edit" %>
+                    <% unless current_user.view_only? %><%= link_to "Edit", edit_fabric_lot_path(l), class: "btn-sm edit" %><% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+            <tr id="lotNoMatch" class="hidden"><td colspan="8" class="muted" style="text-align:center;padding:24px">No lots match your filter.</td></tr>
+            <% if @lots.empty? %>
+              <tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No fabric lots yet.</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const q = document.getElementById("lotSearch");
+    const status = document.getElementById("lotStatus");
+    const countEl = document.getElementById("lotSearchCount");
+    const noMatch = document.getElementById("lotNoMatch");
+    if (!q) return;
+    const rows = Array.from(document.querySelectorAll(".lot-row"));
+    function apply() {
+      const term = q.value.trim().toLowerCase();
+      const st = status.value;
+      let n = 0;
+      rows.forEach((r) => {
+        const hitText = !term || (r.dataset.search || "").includes(term);
+        const hitStatus = !st || r.dataset.status === st;
+        const show = hitText && hitStatus;
+        r.style.display = show ? "" : "none";
+        if (show) n++;
+      });
+      if (noMatch) noMatch.classList.toggle("hidden", n !== 0 || rows.length === 0);
+      const filtering = term || st;
+      countEl.textContent = filtering ? (n + " of " + rows.length) : "";
+    }
+    q.addEventListener("input", apply);
+    status.addEventListener("change", apply);
+    apply();
+  })();
+</script>

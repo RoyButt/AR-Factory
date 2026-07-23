@@ -1,0 +1,76 @@
+<div class="form-card form-card-wide">
+  <% if @entry.errors.any? %><div class="error-list"><%= @entry.errors.full_messages.to_sentence %></div><% end %>
+  <%= form_with model: @entry, url: (@entry.persisted? ? khatta_emb_path(@entry) : khatta_embs_path), method: (@entry.persisted? ? :patch : :post), local: true do |f| %>
+    <div class="form-grid">
+      <div class="field"><%= f.label :contractor, "Contractor" %>
+        <%= f.select :contractor, (@parties + [@entry.contractor]).compact.reject(&:blank?).uniq, { include_blank: "Select party…" } %></div>
+      <div class="field"><%= f.label :design_code, "Design" %>
+        <%= f.select :design_code, (@design_codes + [@entry.design_code]).compact.reject(&:blank?).uniq, { include_blank: "Select design…" } %></div>
+      <div class="field"><%= f.label :suits_sent, "Suits sent" %><%= f.number_field :suits_sent, id: "kSent" %></div>
+      <div class="field"><%= f.label :returned_on, "Sent on" %><%= f.date_field :returned_on %></div>
+      <div class="field" style="grid-column:1 / -1"><%= f.label :notes, "Notes" %><%= f.text_field :notes, placeholder: "Optional" %></div>
+    </div>
+
+    <div class="form-section-title">Deliveries (returns from embroidery)</div>
+    <p class="muted" style="margin-bottom:8px">Each delivery is kept separately with its date. Use “＋ Add delivery” for a new drop — it does not overwrite earlier ones.</p>
+    <div class="deliv-head"><span>Delivery date</span><span>Suits returned</span><span></span></div>
+    <div id="delivs">
+      <%= f.fields_for :khatta_deliveries do |df| %>
+        <div class="deliv-row">
+          <%= df.date_field :delivered_on %>
+          <%= df.number_field :suits, placeholder: "0", class: "d-suits" %>
+          <%= df.hidden_field :_destroy, value: 0, class: "d-destroy" %>
+          <button type="button" class="d-remove" title="Remove">✕</button>
+        </div>
+      <% end %>
+    </div>
+    <template id="deliv-template">
+      <%= f.fields_for :khatta_deliveries, KhattaDelivery.new, child_index: "NEW_DELIV" do |df| %>
+        <div class="deliv-row">
+          <%= df.date_field :delivered_on, value: Date.current %>
+          <%= df.number_field :suits, placeholder: "0", class: "d-suits" %>
+          <%= df.hidden_field :_destroy, value: 0, class: "d-destroy" %>
+          <button type="button" class="d-remove" title="Remove">✕</button>
+        </div>
+      <% end %>
+    </template>
+    <button type="button" id="addDeliv" class="btn-soft btn-xs" style="margin-top:8px">＋ Add delivery</button>
+
+    <div class="deliv-summary">Returned: <b id="kReturned">0</b> · Sent: <b id="kSentOut">0</b> · Pending: <b id="kPending">0</b></div>
+
+    <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+      <%= f.submit (@entry.persisted? ? "Save" : "Record"), class: "btn-primary" %>
+      <%= link_to "Cancel", khatta_embs_path, class: "btn-soft" %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  (function () {
+    const tpl = document.getElementById("deliv-template"), box = document.getElementById("delivs");
+    document.getElementById("addDeliv").addEventListener("click", function () {
+      box.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/NEW_DELIV/g, Date.now().toString()));
+      recalc();
+    });
+    box.addEventListener("click", function (e) {
+      if (!e.target.classList.contains("d-remove")) return;
+      const row = e.target.closest(".deliv-row"), d = row.querySelector(".d-destroy");
+      row.querySelectorAll("input").forEach((el) => (el.required = false));
+      if (d) { d.value = "1"; row.style.display = "none"; } else { row.remove(); }
+      recalc();
+    });
+    const num = (v) => { const n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
+    function recalc() {
+      let ret = 0;
+      box.querySelectorAll(".deliv-row").forEach((r) => { if (r.style.display !== "none") ret += num(r.querySelector(".d-suits") && r.querySelector(".d-suits").value); });
+      const sent = num((document.getElementById("kSent") || {}).value);
+      document.getElementById("kReturned").textContent = ret;
+      document.getElementById("kSentOut").textContent = sent;
+      const p = sent - ret;
+      const pe = document.getElementById("kPending");
+      pe.textContent = p; pe.style.color = p > 0 ? "#b9770e" : "#1d8a4e";
+    }
+    document.addEventListener("input", (e) => { if (e.target.closest("#delivs") || e.target.id === "kSent") recalc(); });
+    recalc();
+  })();
+</script>

@@ -1,0 +1,80 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <h1>Analytics</h1>
+    </div>
+
+    <!-- Filters + download / print (travels with the filter component) -->
+    <div class="panel no-print-shadow">
+      <div class="filter-panel-head">
+        <h2>Filters</h2>
+        <% q = { from: @data.from, to: @data.to, dataset: @data.dataset } %>
+        <div class="export-group">
+          <%= link_to "⤓ Excel", analytics_export_path(q.merge(format: :xlsx)), class: "btn-export xls" %>
+          <%= link_to "⤓ PDF",   analytics_export_path(q.merge(format: :pdf)),  class: "btn-export pdf" %>
+          <%= link_to "⤓ CSV",   analytics_export_path(q.merge(format: :csv)),  class: "btn-export csv" %>
+          <button type="button" class="btn-export print" onclick="window.print()">🖨 Print</button>
+        </div>
+      </div>
+      <%= form_with url: analytics_path, method: :get, local: true, class: "filter-row" do %>
+        <div class="filter-field">
+          <label>Dataset</label>
+          <%= select_tag :dataset, options_for_select(AnalyticsData::DATASETS.map { |k, v| [v, k] }, @data.dataset) %>
+        </div>
+        <div class="filter-field">
+          <label>From month</label>
+          <%= select_tag :from, options_for_select(AnalyticsData::MONTHS.each_with_index.map { |m, i| [m, i + 1] }, @data.from) %>
+        </div>
+        <div class="filter-field">
+          <label>To month</label>
+          <%= select_tag :to, options_for_select(AnalyticsData::MONTHS.each_with_index.map { |m, i| [m, i + 1] }, @data.to) %>
+        </div>
+        <%= submit_tag "Apply", class: "btn-apply" %>
+      <% end %>
+    </div>
+
+    <!-- KPIs -->
+    <div class="cards">
+      <% @data.kpis.each do |k| %>
+        <div class="card"><div class="k"><%= k[:label] %></div><div class="v"><%= k[:value] %></div></div>
+      <% end %>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid2">
+      <div class="panel"><h2>Monthly Sales (pieces)</h2><div class="chart-box"><canvas id="salesChart"></canvas></div></div>
+      <div class="panel"><h2>Top Designs</h2><div class="chart-box"><canvas id="designsChart"></canvas></div></div>
+    </div>
+    <div class="panel"><h2>Weekly Wage Bill (Rs)</h2><div class="chart-box" style="height:240px"><canvas id="wagesChart"></canvas></div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const sales   = <%= raw @data.sales_chart.to_json %>;
+  const designs = <%= raw @data.designs_chart.to_json %>;
+  const wages   = <%= raw @data.wages_chart.to_json %>;
+  const NAVY = "#2c3e50", BLUE = "#4aa3df", GREEN = "#1d8a4e";
+
+  function mk(id, type, labels, data, color, label) {
+    const el = document.getElementById(id);
+    if (!el || typeof Chart === "undefined") return;
+    new Chart(el, {
+      type: type,
+      data: { labels: labels, datasets: [{ label: label, data: data,
+        backgroundColor: type === "line" ? "rgba(74,163,223,.15)" : color,
+        borderColor: color, borderWidth: 2, fill: type === "line", tension: .3,
+        borderRadius: type === "bar" ? 6 : 0 }] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, grid: { color: "#eef1f4" } }, x: { grid: { display: false } } } }
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    mk("salesChart",   "line", sales.labels,   sales.data,   BLUE,  "Pieces");
+    mk("designsChart", "bar",  designs.labels, designs.data, NAVY,  "Qty");
+    mk("wagesChart",   "bar",  wages.labels,   wages.data,   GREEN, "Wages");
+  });
+</script>

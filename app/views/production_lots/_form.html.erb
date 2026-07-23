@@ -1,0 +1,86 @@
+<div class="form-card form-card-wide">
+  <% if @lot.errors.any? %>
+    <div class="error-list"><%= @lot.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <%= form_with model: @lot, url: (@lot.persisted? ? production_lot_path(@lot) : production_lots_path),
+                method: (@lot.persisted? ? :patch : :post), local: true,
+                html: { multipart: true } do |f| %>
+
+    <div class="form-section-title" style="border-top:none;margin-top:0;padding-top:0">Lot Information</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :emb_name, "EMB Name (embroiderer)" %><%= f.text_field :emb_name %></div>
+      <div class="field"><%= f.label :design %><%= f.text_field :design %></div>
+      <div class="field"><%= f.label :laat_number, "Laat #" %><%= f.text_field :laat_number %></div>
+      <div class="field"><%= f.label :total_suit, "Total Suits" %><%= f.number_field :total_suit %></div>
+    </div>
+
+    <div class="form-section-title">Embroidery</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :emb_sent_date, "Sent to embroiderer" %><%= f.date_field :emb_sent_date %></div>
+      <div class="field"><%= f.label :emb_sent_qty, "Qty sent" %><%= f.number_field :emb_sent_qty %></div>
+      <div class="field"><%= f.label :emb_received_date, "Received back" %><%= f.date_field :emb_received_date %></div>
+      <div class="field"><%= f.label :emb_received_qty, "Qty returned" %><%= f.number_field :emb_received_qty %></div>
+      <div class="field"><%= f.label :emb_paid_date, "Payment date" %><%= f.date_field :emb_paid_date %></div>
+      <label class="switch-row"><%= f.check_box :emb_paid %> Embroidery payment done</label>
+    </div>
+    <%= render "attachments", stage_key: "emb_out" %>
+
+    <div class="form-section-title">Production</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :production_date, "Production date" %><%= f.date_field :production_date %></div>
+    </div>
+    <%= render "attachments", stage_key: "production" %>
+
+    <div class="form-section-title">CutWork</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :cutwork_sent_date, "Sent for cutwork" %><%= f.date_field :cutwork_sent_date %></div>
+      <div class="field"><%= f.label :cutwork_sent_qty, "Qty sent" %><%= f.number_field :cutwork_sent_qty %></div>
+      <div class="field"><%= f.label :cutwork_received_qty, "Qty returned" %><%= f.number_field :cutwork_received_qty %></div>
+      <div class="field"><%= f.label :cutwork_paid_date, "Payment date" %><%= f.date_field :cutwork_paid_date %></div>
+      <label class="switch-row"><%= f.check_box :cutwork_paid %> CutWork payment done</label>
+    </div>
+    <%= render "attachments", stage_key: "cutwork" %>
+
+    <div class="form-section-title">OverLock</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :overlock_sent_date, "Sent for overlock" %><%= f.date_field :overlock_sent_date %></div>
+      <div class="field"><%= f.label :overlock_sent_qty, "Qty sent" %><%= f.number_field :overlock_sent_qty %></div>
+      <div class="field"><%= f.label :overlock_received_qty, "Qty returned" %><%= f.number_field :overlock_received_qty %></div>
+      <div class="field"><%= f.label :overlock_paid_date, "Payment date" %><%= f.date_field :overlock_paid_date %></div>
+      <label class="switch-row"><%= f.check_box :overlock_paid %> OverLock payment done</label>
+    </div>
+    <%= render "attachments", stage_key: "overlock" %>
+
+    <div class="form-section-title">HandMade</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :handmade_sent_qty, "Qty sent" %><%= f.number_field :handmade_sent_qty %></div>
+      <div class="field"><%= f.label :handmade_received_qty, "Qty returned" %><%= f.number_field :handmade_received_qty %></div>
+      <div class="field"><%= f.label :handmade_return_date, "Return date" %><%= f.date_field :handmade_return_date %></div>
+      <div class="field"><%= f.label :handmade_paid_date, "Payment date" %><%= f.date_field :handmade_paid_date %></div>
+      <label class="switch-row"><%= f.check_box :handmade_paid %> HandMade payment done</label>
+    </div>
+    <%= render "attachments", stage_key: "handmade_return" %>
+
+    <div class="form-section-title">Press &amp; Out</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :press_date, "Press date" %><%= f.date_field :press_date %></div>
+      <div class="field"><%= f.label :out_date, "Out (to market) date" %><%= f.date_field :out_date %></div>
+    </div>
+    <%= render "attachments", stage_key: "press" %>
+
+    <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+      <%= f.submit (@lot.persisted? ? "Save changes" : "Add lot"), class: "btn-primary" %>
+      <%= link_to "Cancel", dashboard_path, class: "btn-soft" %>
+    </div>
+  <% end %>
+
+  <%# Delete is its OWN form — must live OUTSIDE the edit form above (nested forms break Save). %>
+  <% if @lot.persisted? %>
+    <div style="margin-top:14px; border-top:1px solid #eef1f4; padding-top:14px">
+      <%= button_to "Delete lot", production_lot_path(@lot), method: :delete,
+            class: "btn-sm del",
+            form: { data: { turbo_confirm: "Delete this lot permanently?" } } %>
+    </div>
+  <% end %>
+</div>

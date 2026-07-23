@@ -1,0 +1,6 @@
+<div class="field cl-field">
+  <%= cl.text_field :name, placeholder: "Item name", class: "cl-name" %>
+  <%= cl.number_field :amount, step: 0.01, placeholder: "Amount", class: "cl-amount" %>
+  <button type="button" class="cl-remove" title="Remove">✕</button>
+  <%= cl.hidden_field :_destroy, value: 0, class: "cl-destroy" %>
+</div>

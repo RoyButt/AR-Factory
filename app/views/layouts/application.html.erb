@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AR-Unit · Factory Management System</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+  </head>
+
+  <body>
+    <% if notice %><div class="flash flash-ok" data-flash><%= notice %></div><% end %>
+    <% if alert %><div class="flash flash-err" data-flash><%= alert %></div><% end %>
+    <%= yield %>
+
+    <div id="imgLightbox" class="img-lightbox" aria-hidden="true">
+      <button type="button" class="img-lightbox-close" aria-label="Close">✕</button>
+      <img src="" alt="">
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Click any content image to expand it in a lightbox (same page)
+        var lb = document.getElementById("imgLightbox");
+        var lbImg = lb ? lb.querySelector("img") : null;
+        function openLightbox(src) {
+          if (!lb || !src) return;
+          lbImg.src = src;
+          lb.classList.add("open");
+          document.body.style.overflow = "hidden";
+        }
+        function closeLightbox() {
+          if (!lb) return;
+          lb.classList.remove("open");
+          lbImg.src = "";
+          document.body.style.overflow = "";
+        }
+        document.addEventListener("click", function (e) {
+          var img = e.target.closest(".main img, .party-avatar img, .img-preview img, .cc-image img");
+          if (img && !img.closest("#imgLightbox")) {
+            e.preventDefault();          // don't follow any wrapping blob link
+            openLightbox(img.currentSrc || img.src);
+            return;
+          }
+          if (e.target === lb || e.target.closest(".img-lightbox-close")) closeLightbox();
+        });
+        document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeLightbox(); });
+
+        // Auto-dismiss flash toasts
+        document.querySelectorAll("[data-flash]").forEach(function (el) {
+          setTimeout(function () { el.classList.add("flash-hide"); }, 3000);
+          setTimeout(function () { el.remove(); }, 3500);
+        });
+
+        // ---- Column show/hide toggle on every data table (.utable) ----
+        function setupColToggle(table, ti) {
+          var headRow = table.tHead && table.tHead.rows[0];
+          if (!headRow || table._colToggle || table.hasAttribute("data-no-coltoggle")) return;
+          table._colToggle = true;
+          var cols = Array.prototype.slice.call(headRow.cells), nCol = cols.length;
+          if (nCol < 2) return;
+          function apply(i, show) {
+            if (cols[i]) cols[i].style.display = show ? "" : "none";
+            Array.prototype.forEach.call(table.tBodies, function (tb) {
+              Array.prototype.forEach.call(tb.rows, function (r) {
+                if (r.cells.length !== nCol) return;   // skip colspan rows (empty state / spanning)
+                if (r.cells[i]) r.cells[i].style.display = show ? "" : "none";
+              });
+            });
+          }
+          var bar = document.createElement("div"); bar.className = "coltoggle-bar";
+          var dd = document.createElement("div"); dd.className = "coltoggle";
+          var btn = document.createElement("button"); btn.type = "button"; btn.className = "coltoggle-btn"; btn.textContent = "▦ Columns";
+          var menu = document.createElement("div"); menu.className = "coltoggle-menu hidden";
+          cols.forEach(function (th, i) {
+            var label = (th.textContent || "").trim() || ("Column " + (i + 1));
+            var locked = th.hasAttribute("data-lock");    // always visible, cannot be hidden
+            var visible = locked ? true : !th.hasAttribute("data-off"); // reset to defaults on refresh
+            var item = document.createElement("label"); item.className = "coltoggle-item";
+            var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = visible; cb.disabled = locked;
+            cb.addEventListener("change", function () { apply(i, cb.checked); });
+            item.appendChild(cb); item.appendChild(document.createTextNode(" " + label));
+            menu.appendChild(item);
+            apply(i, visible);
+          });
+          btn.addEventListener("click", function (e) { e.stopPropagation(); menu.classList.toggle("hidden"); });
+          menu.addEventListener("click", function (e) { e.stopPropagation(); });
+          document.addEventListener("click", function () { menu.classList.add("hidden"); });
+          dd.appendChild(btn); dd.appendChild(menu); bar.appendChild(dd);
+          var anchor = table.closest(".tab-scroll, .table-scroll") || table;
+          anchor.parentNode.insertBefore(bar, anchor);
+        }
+        document.querySelectorAll(".main table.utable").forEach(function (t, ti) { setupColToggle(t, ti); });
+
+        // Image preview: show the selected file next to any file input
+        document.querySelectorAll("input.js-image-input").forEach(function (input) {
+          input.addEventListener("change", function () {
+            var box = input.parentElement.querySelector(".img-preview");
+            if (!box) return;
+            var file = input.files && input.files[0];
+            if (!file) { return; }
+            if (file.type && file.type.indexOf("image/") === 0) {
+              var url = URL.createObjectURL(file);
+              box.innerHTML = '<img src="' + url + '"><span class="img-name">' + file.name + '</span>';
+            } else {
+              box.innerHTML = '<span class="img-name">📎 ' + file.name + '</span>';
+            }
+          });
+        });
+
+        // ---- Searchable dropdowns: enhance native <select> (white panel below, filter box, scrolls) ----
+        (function () {
+          var panel, search, optBox, current, currentCtrl, hi = -1, buffer = "";
+          function ensurePanel() {
+            if (panel) return;
+            panel = document.createElement("div"); panel.className = "ss-panel";
+            panel.innerHTML = '<input type="text" class="ss-search" placeholder="Type to filter…" autocomplete="off"><div class="ss-options"></div>';
+            document.body.appendChild(panel);
+            search = panel.querySelector(".ss-search");
+            optBox = panel.querySelector(".ss-options");
+            // mouse users may type in the box directly; keyboard users type on the control (focus stays there)
+            search.addEventListener("input", function () { buffer = search.value; filter(buffer); setHi(0); });
+            search.addEventListener("keydown", navKey);
+            panel.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+          }
+          function isOpen() { return panel && panel.classList.contains("open"); }
+          function visibleOpts() {
+            return Array.prototype.filter.call(optBox.children, function (d) { return d.style.display !== "none"; });
+          }
+          function setHi(i) {
+            Array.prototype.forEach.call(optBox.children, function (d) { d.classList.remove("hi"); });
+            var vis = visibleOpts();
+            if (!vis.length) { hi = -1; return; }
+            if (i < 0) i = 0; if (i >= vis.length) i = vis.length - 1;
+            vis[i].classList.add("hi"); hi = i; vis[i].scrollIntoView({ block: "nearest" });
+          }
+          function filter(q) {
+            q = (q || "").toLowerCase();
+            Array.prototype.forEach.call(optBox.children, function (d) {
+              d.style.display = (!q || d.textContent.toLowerCase().indexOf(q) >= 0) ? "" : "none";
+            });
+          }
+          function choose(d) {
+            if (!current || !d) return;
+            current.selectedIndex = parseInt(d.dataset.idx, 10);
+            current.dispatchEvent(new Event("input", { bubbles: true }));
+            current.dispatchEvent(new Event("change", { bubbles: true }));
+            var c = currentCtrl; close(); if (c) c.focus();
+          }
+          function open(sel, control) {
+            if (sel.disabled) return;
+            ensurePanel(); current = sel; currentCtrl = control; buffer = "";
+            optBox.innerHTML = ""; var selVis = 0, seen = 0;
+            Array.prototype.forEach.call(sel.options, function (o, i) {
+              if (o.disabled) return;
+              var d = document.createElement("div"); d.className = "ss-option"; d.textContent = o.textContent.trim(); d.dataset.idx = i;
+              if (i === sel.selectedIndex) { d.classList.add("sel"); selVis = seen; }
+              d.addEventListener("mouseenter", function () { setHi(visibleOpts().indexOf(d)); });
+              d.addEventListener("mousedown", function (e) { e.preventDefault(); choose(d); });
+              optBox.appendChild(d); seen++;
+            });
+            var r = control.getBoundingClientRect();
+            panel.style.left = Math.min(r.left, window.innerWidth - 240) + "px";
+            panel.style.minWidth = r.width + "px";
+            // flip up when there isn't enough room below; always cap the list so it scrolls inside the viewport
+            var spaceBelow = window.innerHeight - r.bottom - 12;
+            var spaceAbove = r.top - 12;
+            var openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+            var avail = openUp ? spaceAbove : spaceBelow;
+            optBox.style.maxHeight = Math.max(96, Math.min(300, avail - 52)) + "px";   // 52 ≈ search box + padding
+            if (openUp) { panel.style.top = "auto"; panel.style.bottom = (window.innerHeight - r.top + 4) + "px"; }
+            else        { panel.style.bottom = "auto"; panel.style.top = (r.bottom + 4) + "px"; }
+            panel.classList.add("open"); search.value = ""; filter("");
+            var few = sel.options.length <= 3;                 // tiny lists (Full/Half/0) don't need a filter box
+            search.style.display = few ? "none" : "";
+            setHi(selVis);                                     // focus stays on the control → clean Tab flow
+          }
+          function close() { if (panel) panel.classList.remove("open"); current = null; hi = -1; buffer = ""; }
+
+          // arrow/enter/esc/tab driver, shared by the control and the (mouse-focused) filter box
+          function navKey(e) {
+            if (e.key === "ArrowDown") { e.preventDefault(); setHi(hi + 1); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setHi(hi - 1); }
+            else if (e.key === "Enter") { e.preventDefault(); var v = visibleOpts(); v[hi] ? choose(v[hi]) : close(); }
+            else if (e.key === "Escape") { e.preventDefault(); var c = currentCtrl; close(); if (c) c.focus(); }
+            else if (e.key === "Tab") {
+              if (document.activeElement === search) { e.preventDefault(); var cc = currentCtrl; close(); if (cc) cc.focus(); }
+              else close();                                    // focus is on the control → let Tab move to next field
+            }
+          }
+          function enhance(sel) {
+            if (sel._ss || sel.multiple || sel.dataset.noSs === "1") return;
+            sel._ss = true;
+            var wrap = document.createElement("div"); wrap.className = "ss-wrap";
+            sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(sel);
+            sel.classList.add("ss-native");
+            var control = document.createElement("button");
+            control.type = "button";
+            control.className = "ss-control" + (sel.className.indexOf("mx-inp") >= 0 ? " ss-mx" : "");
+            control.innerHTML = '<span class="ss-value"></span><span class="ss-caret">▾</span>';
+            wrap.appendChild(control);
+            var valEl = control.querySelector(".ss-value");
+            function syncLabel() {
+              var o = sel.options[sel.selectedIndex];
+              valEl.textContent = o ? o.textContent.trim() : "";
+              valEl.classList.toggle("ss-placeholder", !sel.value);
+              control.disabled = sel.disabled;
+            }
+            control.addEventListener("click", function (e) {
+              e.stopPropagation();
+              (isOpen() && current === sel) ? close() : open(sel, control);
+            });
+            control.addEventListener("keydown", function (e) {
+              var openNow = isOpen() && current === sel;
+              if (!openNow) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") { e.preventDefault(); open(sel, control); return; }
+                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {   // type-ahead opens + filters
+                  e.preventDefault(); open(sel, control); buffer = e.key; search.value = buffer; filter(buffer); setHi(0);
+                }
+                return;                                        // Tab / Shift etc. → default (move to next field)
+              }
+              if (e.key === "Backspace") { e.preventDefault(); buffer = buffer.slice(0, -1); search.value = buffer; filter(buffer); setHi(0); }
+              else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); buffer += e.key; search.value = buffer; filter(buffer); setHi(0); }
+              else navKey(e);
+            });
+            control.addEventListener("blur", function () { setTimeout(function () { if (current === sel) close(); }, 120); });
+            sel.addEventListener("change", syncLabel);
+            syncLabel();
+          }
+          function enhanceIn(root) {
+            if (!root || !root.querySelectorAll) return;
+            root.querySelectorAll("select").forEach(enhance);
+          }
+          enhanceIn(document);
+          // Auto-enhance dropdowns added later (Add row / Add file / Add delivery / Add variant, etc.)
+          if (window.MutationObserver) {
+            new MutationObserver(function (muts) {
+              muts.forEach(function (m) {
+                Array.prototype.forEach.call(m.addedNodes, function (n) {
+                  if (n.nodeType !== 1) return;
+                  if (n.tagName === "SELECT") enhance(n);
+                  else enhanceIn(n);
+                });
+              });
+            }).observe(document.body, { childList: true, subtree: true });
+          }
+          document.addEventListener("click", close);
+          // close on PAGE scroll, but NOT when scrolling inside the dropdown's own options list
+          window.addEventListener("scroll", function (e) {
+            if (panel && (e.target === panel || (e.target.nodeType === 1 && panel.contains(e.target)))) return;
+            close();
+          }, true);
+          window.addEventListener("resize", close);
+        })();
+
+        // Sidebar "Parties" group accordion (expand/collapse its children)
+        document.querySelectorAll(".nav-parent").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            var g = btn.closest(".nav-group");
+            if (!g) return;
+            g.classList.toggle("open");
+            btn.setAttribute("aria-expanded", g.classList.contains("open"));
+          });
+        });
+
+        // Sidebar user menu toggle
+        var row = document.getElementById("sideUserRow");
+        var menu = document.getElementById("userMenu");
+        var caret = document.getElementById("userCaret");
+        if (row && menu) {
+          row.addEventListener("click", function (e) {
+            e.stopPropagation();
+            menu.classList.toggle("hidden");
+            if (caret) caret.classList.toggle("open");
+          });
+          menu.addEventListener("click", function (e) { e.stopPropagation(); });
+          document.addEventListener("click", function () {
+            menu.classList.add("hidden");
+            if (caret) caret.classList.remove("open");
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

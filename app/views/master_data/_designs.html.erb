@@ -1,0 +1,51 @@
+<div class="panel-head"><h2>Designs &amp; Variants</h2><span class="muted"><%= @designs.size %> designs · embroidery consumption computed live from Settings</span></div>
+<div class="table-scroll">
+  <table class="utable md-table">
+    <thead>
+      <tr>
+        <th>Image</th><th>Code</th><th>Category</th>
+        <th>Variants &amp; Consumption (EMB / Backup / per-piece)</th>
+        <th class="num">Avg /pc</th><th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @designs.each do |d| %>
+        <tr class="searchable" data-search="<%= d.code %> <%= d.category %> <%= d.design_variants.map(&:size).join(' ') %>">
+          <td>
+            <% pic = d.display_picture %>
+            <% if pic %>
+              <%= link_to rails_blob_path(pic), target: "_blank" do %>
+                <%= image_tag rails_blob_path(pic), class: "thumb" %>
+              <% end %>
+            <% else %>
+              <span class="thumb-empty"><%= d.code.gsub("AR-", "") %></span>
+            <% end %>
+          </td>
+          <td><b><%= d.code %></b></td>
+          <td><span class="role-badge <%= d.category == 'Printed' ? 'operator' : 'admin' %>"><%= d.category %></span></td>
+          <td>
+            <% d.design_variants.each do |v| %>
+              <div class="vrow">
+                <span class="chip"><%= v.size.presence || "P" %></span>
+                <span class="vc">EMB <b><%= v.emb_consumption %></b></span>
+                <span class="vc">Backup <b><%= v.backup_consumption %></b></span>
+                <span class="vc">/pc <b><%= v.per_piece_avg %></b></span>
+              </div>
+            <% end %>
+            <% if d.design_variants.empty? %><span class="muted">No variants</span><% end %>
+          </td>
+          <td class="num"><b><%= d.avg_per_piece %></b></td>
+          <td>
+            <div class="row-actions">
+              <% unless current_user.view_only? %>
+                <%= link_to "Edit", edit_design_path(d), class: "btn-sm edit" %>
+                <%= button_to "Delete", design_path(d), method: :delete, class: "btn-sm del",
+                      form: { style: "display:inline" }, data: { turbo_confirm: "Delete #{d.code}?" } %>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

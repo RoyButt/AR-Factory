@@ -1,0 +1,95 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>🧑‍🔧 Emb Master — Losses</h1>
+        <p class="page-sub">Master is your direct employee — every extra cloth he spoils is your loss. Tracked here: how many metres, which article, which laat, when, and the cost.</p>
+      </div>
+    </div>
+
+    <div class="ke-stats" style="grid-template-columns:repeat(3,1fr)">
+      <div class="ke-stat"><span>Entries</span><b><%= @rows.size %></b></div>
+      <div class="ke-stat ke-stat-warn"><span>Total Cloth Lost</span><b><%= number_with_delimiter(@total_meters == @total_meters.to_i ? @total_meters.to_i : @total_meters) %> m</b></div>
+      <div class="ke-stat ke-stat-claim"><span>Total Cost</span><b><%= rs(@total_cost) %></b></div>
+    </div>
+
+    <div class="panel">
+      <div class="lot-filter">
+        <div class="md-search-bar">
+          <span class="md-search-ic">⌕</span>
+          <input type="text" id="emSearch" class="md-search" placeholder="Search article, laat, colour, reason…">
+        </div>
+        <label class="lot-filter-field"><span>Laat</span>
+          <select id="emLaat"><option value="">All</option><% @laats.each do |l| %><option value="<%= l %>"><%= "##{l}" %></option><% end %></select>
+        </label>
+        <label class="lot-filter-field"><span>Article</span>
+          <select id="emArticle"><option value="">All</option><% @articles.each do |a| %><option value="<%= a %>"><%= a %></option><% end %></select>
+        </label>
+        <label class="lot-filter-field"><span>Month</span>
+          <select id="emMonth"><option value="">All</option><% @months.each do |m| %><option value="<%= m %>"><%= m %></option><% end %></select>
+        </label>
+        <span class="md-search-count" id="emCount"></span>
+      </div>
+
+      <div class="tab-scroll">
+        <table class="utable">
+          <thead><tr><th>Date</th><th>Laat</th><th>Article</th><th>Colour</th><th class="num">Metres Lost</th><th class="num">Rate / m</th><th class="num">Cost</th><th>Reason</th></tr></thead>
+          <tbody>
+            <% @rows.each do |a| %>
+              <% rate = @rate_for[a.design].to_f %>
+              <% cost = (a.gazana.to_f * rate).round(2) %>
+              <% mth = a.date&.strftime("%B %Y") %>
+              <tr class="em-row" data-search="<%= [a.date&.strftime('%d %b %Y'), a.fabric_lot&.laat_number, a.design, a.fabric_lot_color&.name, a.note].compact.join(' ').downcase %>" data-laat="<%= a.fabric_lot&.laat_number %>" data-article="<%= a.design %>" data-month="<%= mth %>">
+                <td><%= a.date&.strftime("%d %b %Y") || "—" %></td>
+                <td><%= link_to "##{a.fabric_lot&.laat_number}", fabric_lot_path(a.fabric_lot_id), class: "cc-code" %></td>
+                <td><b><%= a.design.presence || "—" %></b></td>
+                <td><%= a.fabric_lot_color&.name || "—" %></td>
+                <% g = a.gazana.to_f %>
+                <td class="num"><b><%= number_with_delimiter(g == g.to_i ? g.to_i : g.round(2)) %></b> m</td>
+                <td class="num"><%= rate.positive? ? rs(rate) : "—" %></td>
+                <td class="num"><b><%= rate.positive? ? rs(cost) : "—" %></b></td>
+                <td class="muted"><%= a.note.presence || "—" %></td>
+              </tr>
+            <% end %>
+            <tr id="emNoMatch" class="hidden"><td colspan="8" class="muted" style="text-align:center;padding:24px">No entries match your filter.</td></tr>
+            <% if @rows.empty? %>
+              <tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No Master losses yet — charge "Master" in a lot's Extra Cloth / Gazana Adjustments and it appears here.</td></tr>
+            <% end %>
+          </tbody>
+          <% if @rows.any? %>
+            <tfoot><tr class="tot">
+              <td colspan="4" style="text-align:right"><b>Total</b></td>
+              <td class="num"><b><%= number_with_delimiter(@total_meters == @total_meters.to_i ? @total_meters.to_i : @total_meters) %></b> m</td>
+              <td></td>
+              <td class="num"><b><%= rs(@total_cost) %></b></td>
+              <td></td>
+            </tr></tfoot>
+          <% end %>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var q = document.getElementById("emSearch"), la = document.getElementById("emLaat"),
+        ar = document.getElementById("emArticle"), mo = document.getElementById("emMonth"),
+        count = document.getElementById("emCount"), noMatch = document.getElementById("emNoMatch");
+    if (!q) return;
+    var rows = Array.prototype.slice.call(document.querySelectorAll(".em-row"));
+    function apply() {
+      var term = q.value.trim().toLowerCase(), l = la.value, a = ar.value, m = mo.value, n = 0;
+      rows.forEach(function (r) {
+        var ok = (!term || (r.dataset.search || "").indexOf(term) >= 0) &&
+                 (!l || r.dataset.laat === l) && (!a || r.dataset.article === a) && (!m || r.dataset.month === m);
+        r.style.display = ok ? "" : "none"; if (ok) n++;
+      });
+      if (noMatch) noMatch.classList.toggle("hidden", n !== 0 || rows.length === 0);
+      count.textContent = (term || l || a || m) ? (n + " of " + rows.length) : "";
+    }
+    [q, la, ar, mo].forEach(function (el) { el.addEventListener("input", apply); el.addEventListener("change", apply); });
+    apply();
+  })();
+</script>

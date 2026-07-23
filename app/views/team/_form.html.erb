@@ -1,0 +1,59 @@
+<div class="form-card">
+  <% if @user.errors.any? %>
+    <div class="error-list">
+      <%= @user.errors.full_messages.to_sentence %>
+    </div>
+  <% end %>
+
+  <%= form_with model: @user, url: (@user.persisted? ? team_path(@user) : team_index_path),
+                method: (@user.persisted? ? :patch : :post), local: true do |f| %>
+    <div class="field">
+      <%= f.label :name, "Full name" %>
+      <%= f.text_field :name %>
+    </div>
+
+    <div class="field">
+      <%= f.label :email %>
+      <%= f.email_field :email %>
+    </div>
+
+    <div class="field">
+      <%= f.label :password, @user.persisted? ? "New password (leave blank to keep)" : "Password" %>
+      <%= f.password_field :password, autocomplete: "new-password" %>
+    </div>
+
+    <div class="form-section-title">Access &amp; Permissions</div>
+
+    <div class="field" style="margin-top:16px">
+      <%= f.label :role %>
+      <%= f.select :role, User::ROLES.map { |r| [r.titleize.sub("Superadmin", "Super Admin"), r] } %>
+    </div>
+
+    <div class="field">
+      <label>Access mode</label>
+      <label class="switch-row">
+        <%= f.check_box :view_only %>
+        View only — can browse but cannot add, edit or delete
+      </label>
+    </div>
+
+    <div class="field">
+      <label>Visible sidebar sections</label>
+      <p class="muted" style="margin-bottom:10px">Super Admin always sees everything; this list applies to Admin &amp; Operator.</p>
+      <div class="checks">
+        <%= hidden_field_tag "user[allowed_sections][]", "" %>
+        <% User::SECTIONS.each do |key, (label, _icon)| %>
+          <label>
+            <%= check_box_tag "user[allowed_sections][]", key, @user.sections.include?(key) %>
+            <%= label %>
+          </label>
+        <% end %>
+      </div>
+    </div>
+
+    <div style="margin-top:18px">
+      <%= f.submit (@user.persisted? ? "Save changes" : "Add member"), class: "btn-primary" %>
+      <%= link_to "Cancel", team_index_path, class: "btn-sm edit", style: "margin-left:8px" %>
+    </div>
+  <% end %>
+</div>

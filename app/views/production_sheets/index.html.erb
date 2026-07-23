@@ -1,0 +1,102 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>📄 Production Sheets</h1><p class="page-sub">Daily production grid — prepared from the Stitching page.</p></div>
+    </div>
+
+    <% pending = @sheets.reject(&:completed?) %>   <%# earliest work-start first (upcoming) %>
+    <% done = @sheets.select(&:completed?).reverse %>   <%# most recent work-start first %>
+    <div class="ps-tabs">
+      <button type="button" class="ps-tab active" data-tab="pending">Not Completed <span class="ps-tabcount"><%= pending.size %></span></button>
+      <button type="button" class="ps-tab" data-tab="done">Completed <span class="ps-tabcount"><%= done.size %></span></button>
+    </div>
+
+    <% { "pending" => pending, "done" => done }.each do |tabkey, list| %>
+      <div class="panel ps-tabpanel" data-tabpanel="<%= tabkey %>" <%= "style=display:none".html_safe unless tabkey == "pending" %>>
+        <div class="tab-scroll"><table class="utable" data-no-coltoggle>
+          <thead><tr><th>Work Start</th><th>Day</th><th class="num">Rows</th><th class="num">Total</th><th style="text-align:right" data-lock>Actions</th></tr></thead>
+          <tbody>
+            <% list.each do |s| %>
+              <% tot = (s.values || {}).values.sum { |r| r.values.sum { |v| v.to_i } } %>
+              <% start_d = s.stitch_date || s.sheet_date %>
+              <tr>
+                <td>
+                  <b class="ps-startdate"><%= start_d&.strftime("%d %b %Y") || "—" %></b>
+                  <div class="ps-createddate"><% if s.completed? %>✓ completed <%= s.completed_at.strftime("%d %b %Y") %><% else %>created <%= s.sheet_date&.strftime("%d %b %Y") %><% end %></div>
+                </td>
+                <td><%= start_d&.strftime("%A") || s.day %></td>
+                <td class="num"><%= (s.rows || []).size %></td>
+                <td class="num"><b><%= number_with_delimiter(tot) %></b></td>
+                <td><div class="row-actions">
+                  <%= link_to "Open", edit_production_sheet_path(s), class: "btn-sm edit" %>
+                  <% unless current_user.view_only? %>
+                    <% if s.completed? %>
+                      <%= button_to "↺ Reopen", reopen_production_sheet_path(s), method: :post, class: "btn-sm", form: { style: "display:inline" } %>
+                    <% else %>
+                      <%= button_to "✓ Mark as completed", complete_production_sheet_path(s), method: :post, class: "btn-sm ps-complete", form: { style: "display:inline" },
+                            data: { turbo_confirm: "Mark this sheet completed? Its designs will move to Cutwork/Handmade progress where applicable." } %>
+                    <% end %>
+                    <button type="button" class="btn-sm del ps-del-btn" data-url="<%= production_sheet_path(s) %>" data-label="<%= start_d&.strftime("%d %b %Y") %>">Delete</button>
+                  <% end %>
+                </div></td>
+              </tr>
+            <% end %>
+            <% if list.empty? %><tr><td colspan="5" class="muted" style="text-align:center;padding:24px"><%= tabkey == "pending" ? "No pending sheets." : "No completed sheets yet." %></td></tr><% end %>
+          </tbody>
+        </table></div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="psDelModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:400px">
+      <button type="button" class="ke-modal-x" id="psDelClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title">Delete production sheet</div>
+      <div class="ke-modal-msg" id="psDelMsg"></div>
+      <div class="ke-modal-actions">
+        <button type="button" class="btn-soft" id="psDelCancel">Cancel</button>
+        <form id="psDelForm" method="post" action="#" style="display:inline">
+          <input type="hidden" name="_method" value="delete">
+          <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+          <button type="submit" class="btn-primary" style="background:#b0392f">Delete sheet</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var modal = document.getElementById("psDelModal"), form = document.getElementById("psDelForm");
+      var msg = document.getElementById("psDelMsg");
+      function close() { modal.classList.remove("open"); }
+      document.querySelectorAll(".ps-del-btn").forEach(function (b) {
+        b.addEventListener("click", function () {
+          form.setAttribute("action", b.dataset.url);
+          msg.innerHTML = "Really delete the sheet <b>" + (b.dataset.label || "") + "</b>? This can't be undone.";
+          modal.classList.add("open");
+        });
+      });
+      document.getElementById("psDelClose").addEventListener("click", close);
+      document.getElementById("psDelCancel").addEventListener("click", close);
+      modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+    })();
+  </script>
+<% end %>
+
+<script>
+  (function () {
+    document.querySelectorAll(".ps-tab").forEach(function (t) {
+      t.addEventListener("click", function () {
+        document.querySelectorAll(".ps-tab").forEach(function (x) { x.classList.remove("active"); });
+        t.classList.add("active");
+        document.querySelectorAll(".ps-tabpanel").forEach(function (p) {
+          p.style.display = (p.dataset.tabpanel === t.dataset.tab) ? "" : "none";
+        });
+      });
+    });
+  })();
+</script>

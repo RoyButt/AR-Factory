@@ -1,0 +1,185 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>✂️ Stitching Cost Card</h1><p class="page-sub">Set per-design stitching rates — Shirt Stitch, Trouser Stitch &amp; Shirt Overlock.</p></div>
+    </div>
+
+    <% if @missing_count > 0 %>
+      <div class="scc-banner">⚠ <b><%= @missing_count %></b> of <%= @total_designs %> designs still need a stitching cost card.</div>
+    <% else %>
+      <div class="scc-banner scc-banner-ok">✔ All <%= @total_designs %> designs have a stitching cost card.</div>
+    <% end %>
+
+    <!-- Select a design -->
+    <div class="panel scc-selpanel">
+      <%= form_with url: stitching_cost_cards_path, method: :get, local: true do %>
+        <div class="scc-select">
+          <label class="ke-fld"><span>Add a design</span>
+            <select name="design" onchange="this.form.requestSubmit()">
+              <option value="" <%= "selected" if @design.nil? %> disabled>Select a design…</option>
+              <% @designs.each do |d| %>
+                <option value="<%= d.code %>"><%= d.code %></option>
+              <% end %>
+            </select>
+          </label>
+          <span class="muted" style="font-size:12px">Only designs without a card are listed — click a card below to edit an existing one.</span>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Saved cards -->
+    <div class="panel scc-saved-panel">
+      <div class="scc-section-head">
+        <span>Saved cards <span class="muted">· <%= @cards.size %></span></span>
+        <div class="md-search-bar scc-search">
+          <span class="md-search-ic">⌕</span>
+          <input type="text" id="sccSearch" class="md-search" placeholder="Search design…">
+          <span class="md-search-count" id="sccCount"></span>
+        </div>
+      </div>
+      <div class="party-grid scc-grid">
+      <% @cards.each do |c| %>
+        <% d = c.design %>
+        <div class="scc-card scc-searchable" data-search="<%= c.design_code.downcase %>">
+          <div class="scc-card-pic">
+            <% if d&.display_picture %><%= image_tag rails_blob_path(d.display_picture) %><% else %><span class="scc-card-noimg"><%= c.design_code.gsub("AR-", "") %></span><% end %>
+          </div>
+          <div class="scc-card-body">
+            <div class="scc-card-code"><%= c.design_code %></div>
+            <div class="scc-card-rates">
+              <span>👕 Shirt <b><%= rs(c.shirt_stitch_rate) %></b></span>
+              <span>👖 Trouser <b><%= rs(c.trouser_stitch_rate) %></b></span>
+              <span>🧵 Overlock <b><%= rs(c.shirt_overlock) %></b></span>
+            </div>
+            <div class="scc-card-total">Total <b><%= rs(c.total_rate) %></b></div>
+            <% unless current_user.view_only? %>
+              <div class="scc-card-actions">
+                <%= link_to "✎ Edit", stitching_cost_cards_path(design: c.design_code), class: "btn-sm edit" %>
+                <button type="button" class="btn-sm del scc-del-btn" data-url="<%= stitching_cost_card_path(c) %>" data-label="<%= c.design_code %>">🗑 Delete</button>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+      <% if @cards.empty? %><p class="muted" style="padding:24px">No stitching cost cards yet — select a design above and set its rates.</p><% end %>
+        <p id="sccNoMatch" class="muted hidden" style="padding:24px">No cards match your search.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="sccDelModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:400px">
+      <button type="button" class="ke-modal-x" id="sccDelClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title">Delete stitching card</div>
+      <div class="ke-modal-msg" id="sccDelMsg"></div>
+      <div class="ke-modal-actions">
+        <button type="button" class="btn-soft" id="sccDelCancel">Cancel</button>
+        <form id="sccDelForm" method="post" action="#" style="display:inline">
+          <input type="hidden" name="_method" value="delete">
+          <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+          <button type="submit" class="btn-primary" style="background:#b0392f">Delete card</button>
+        </form>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    // search filter
+    var q = document.getElementById("sccSearch");
+    if (q) {
+      var cards = Array.prototype.slice.call(document.querySelectorAll(".scc-searchable"));
+      var noMatch = document.getElementById("sccNoMatch"), count = document.getElementById("sccCount");
+      q.addEventListener("input", function () {
+        var t = q.value.trim().toLowerCase(), n = 0;
+        cards.forEach(function (c) { var ok = !t || (c.dataset.search || "").indexOf(t) >= 0; c.style.display = ok ? "" : "none"; if (ok) n++; });
+        if (noMatch) noMatch.classList.toggle("hidden", n !== 0 || cards.length === 0);
+        if (count) count.textContent = t ? (n + " of " + cards.length) : "";
+      });
+    }
+    // delete confirm modal
+    var dm = document.getElementById("sccDelModal");
+    if (dm) {
+      var form = document.getElementById("sccDelForm"), msg = document.getElementById("sccDelMsg");
+      var close = function () { dm.classList.remove("open"); };
+      document.querySelectorAll(".scc-del-btn").forEach(function (b) {
+        b.addEventListener("click", function () {
+          form.setAttribute("action", b.dataset.url);
+          msg.innerHTML = "Really delete the stitching card for <b>" + b.dataset.label + "</b>? This can't be undone.";
+          dm.classList.add("open");
+        });
+      });
+      document.getElementById("sccDelClose").addEventListener("click", close);
+      document.getElementById("sccDelCancel").addEventListener("click", close);
+      dm.addEventListener("click", function (e) { if (e.target === dm) close(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+    }
+  })();
+</script>
+
+<% if @design && @detail %>
+  <% cur_total = @card.shirt_stitch_rate.to_f + @card.trouser_stitch_rate.to_f + @card.shirt_overlock.to_f %>
+  <div id="sccModal" class="ke-modal open" aria-hidden="false">
+    <div class="ke-modal-box scc-modal-box">
+      <%= link_to "✕", stitching_cost_cards_path, class: "ke-modal-x", "aria-label": "Close" %>
+      <div class="scc-modal-head">
+        <span class="scc-code"><%= @design.code %></span>
+        <span class="pill"><%= @detail[:category] %></span>
+        <% if cur_total > 0 %><span class="scc-totalpill">Total Rs <%= number_with_delimiter(cur_total.round) %></span><% end %>
+      </div>
+
+      <div class="scc-modal-grid">
+        <div class="scc-pic">
+          <% if @detail[:picture] %>
+            <%= image_tag rails_blob_path(@detail[:picture]), class: "scc-img", alt: @design.code %>
+            <span class="scc-zoomhint">🔍 click to enlarge</span>
+          <% else %>
+            <div class="scc-noimg">🧵<span>No image</span></div>
+          <% end %>
+        </div>
+        <div class="scc-meta">
+          <div class="scc-metarow"><span>Laat(s)</span><b><%= @detail[:laats].any? ? @detail[:laats].map { |l| "##{l}" }.join(", ") : "—" %></b></div>
+          <% if @detail[:head_sizes].any? %><div class="scc-metarow"><span>Head sizes</span><b><%= @detail[:head_sizes].join(", ") %></b></div><% end %>
+          <div class="scc-metarow"><span>Colours</span>
+            <span class="scc-swatches">
+              <% if @detail[:colours].any? %>
+                <% @detail[:colours].each do |c| %><span class="scc-sw" style="background:<%= c[:hex] %>" title="<%= c[:name] %>"></span><% end %>
+              <% else %><b class="muted">—</b><% end %>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <% unless current_user.view_only? %>
+        <div class="scc-formtitle">Stitching rates</div>
+        <%= form_with url: stitching_cost_cards_path, method: :post, local: true, class: "scc-rateform" do %>
+          <%= hidden_field_tag :design_code, @design.code %>
+          <div class="scc-rates">
+            <label class="ke-fld"><span>👕 Shirt Stitch</span>
+              <span class="scc-rswrap">Rs <%= number_field_tag :shirt_stitch_rate, (@card.shirt_stitch_rate == 0 ? nil : @card.shirt_stitch_rate), step: 0.01, min: 0, class: "no-spin", placeholder: "0" %></span></label>
+            <label class="ke-fld"><span>👖 Trouser Stitch</span>
+              <span class="scc-rswrap">Rs <%= number_field_tag :trouser_stitch_rate, (@card.trouser_stitch_rate == 0 ? nil : @card.trouser_stitch_rate), step: 0.01, min: 0, class: "no-spin", placeholder: "0" %></span></label>
+            <label class="ke-fld"><span>🧵 Shirt Overlock</span>
+              <span class="scc-rswrap">Rs <%= number_field_tag :shirt_overlock, (@card.shirt_overlock == 0 ? nil : @card.shirt_overlock), step: 0.01, min: 0, class: "no-spin", placeholder: "0" %></span></label>
+          </div>
+          <div class="scc-modal-actions">
+            <%= link_to "Cancel", stitching_cost_cards_path, class: "btn-soft" %>
+            <%= submit_tag (@card.persisted? ? "Save card" : "Create card"), class: "btn-primary" %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var m = document.getElementById("sccModal");
+      var go = function () { window.location = "<%= stitching_cost_cards_path %>"; };
+      m.addEventListener("click", function (e) { if (e.target === m) go(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") go(); });
+    })();
+  </script>
+<% end %>

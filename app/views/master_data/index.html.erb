@@ -1,0 +1,50 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <h1>Master Data</h1>
+      <% if @tab == "designs" && !current_user.view_only? %>
+        <%= link_to "＋ New Design", new_design_path, class: "btn-primary" %>
+      <% end %>
+    </div>
+
+    <div class="md-tabs">
+      <% [["designs", "Designs"], ["fabric", "Fabric Types"], ["workers", "Workers"], ["settings", "Formulas"]].each do |key, label| %>
+        <%= link_to label, master_data_path(tab: key), class: "md-tab #{'active' if @tab == key}" %>
+      <% end %>
+    </div>
+
+    <div class="panel">
+      <div class="md-search-bar">
+        <span class="md-search-ic">⌕</span>
+        <input type="text" id="mdSearch" class="md-search"
+               placeholder="Search <%= { 'designs' => 'designs by code or category', 'fabric' => 'fabric types', 'workers' => 'workers', 'settings' => 'formulas' }[@tab] %>…">
+        <span class="md-search-count" id="mdSearchCount"></span>
+      </div>
+      <div class="tab-scroll">
+        <%= render "master_data/#{@tab}" %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const input = document.getElementById("mdSearch");
+    const countEl = document.getElementById("mdSearchCount");
+    if (!input) return;
+    const items = Array.from(document.querySelectorAll(".searchable"));
+    function apply() {
+      const q = input.value.trim().toLowerCase();
+      let shown = 0;
+      items.forEach((el) => {
+        const hit = !q || (el.dataset.search || "").toLowerCase().includes(q);
+        el.style.display = hit ? "" : "none";
+        if (hit) shown++;
+      });
+      countEl.textContent = q ? `${shown} match${shown === 1 ? "" : "es"}` : "";
+    }
+    input.addEventListener("input", apply);
+  })();
+</script>

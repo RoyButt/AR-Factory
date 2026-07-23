@@ -1,0 +1,148 @@
+<div class="form-card form-card-wide">
+  <% if @design.errors.any? %>
+    <div class="error-list"><%= @design.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <%= form_with model: @design, url: (@design.persisted? ? design_path(@design) : designs_path),
+                method: (@design.persisted? ? :patch : :post), local: true, html: { multipart: true } do |f| %>
+
+    <% code_options = (@cost_cards.map(&:code) + [@design.code]).compact.uniq.sort %>
+    <% code_images = @cost_cards.each_with_object({}) { |c, h| h[c.code] = (c.picture.attached? ? rails_blob_path(c.picture) : nil) } %>
+
+    <div class="cc-top">
+      <div class="cc-top-left">
+        <div class="form-section-title" style="border-top:none;margin-top:0;padding-top:0">Design</div>
+        <div class="form-grid">
+          <div class="field">
+            <%= f.label :code, "Design code" %>
+            <%= f.select :code, code_options, { include_blank: "Select finalized design…" }, { id: "designCode", required: true } %>
+          </div>
+        </div>
+
+        <div class="form-section-title">Variants &amp; Embroidery Components</div>
+        <p class="muted" style="margin-bottom:10px">EMB &amp; backup consumption are computed from these using the Settings constants.</p>
+
+        <div id="variants">
+          <%= f.fields_for :design_variants do |vf| %>
+            <%= render "variant_fields", vf: vf %>
+          <% end %>
+        </div>
+
+        <div class="emb-total-box">EMB-Total: <b id="embTotal">–</b> <span class="muted">(EMB + Backup across all sizes, live)</span></div>
+      </div>
+
+      <div class="cc-top-right">
+        <div class="img-col-label">Product image (from cost card)</div>
+        <div id="designImg" class="img-preview"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+      <%= f.submit (@design.persisted? ? "Save changes" : "Add design"), class: "btn-primary" %>
+      <%= link_to "Cancel", master_data_path(tab: "designs"), class: "btn-soft" %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  (function () {
+    // Show the selected design code's cost-card image
+    const CODE_IMAGES = <%= raw @cost_cards.each_with_object({}) { |c, h| h[c.code] = (c.picture.attached? ? rails_blob_path(c.picture) : nil) }.to_json %>;
+    const codeSel = document.getElementById("designCode");
+    const imgBox = document.getElementById("designImg");
+    function renderImg() {
+      const url = CODE_IMAGES[codeSel.value];
+      imgBox.innerHTML = url
+        ? '<img src="' + url + '"><span class="img-name">From cost card ' + codeSel.value + '</span>'
+        : '<span class="img-name muted">No image on the cost card for this code.</span>';
+    }
+    if (codeSel && imgBox) { codeSel.addEventListener("change", renderImg); renderImg(); }
+
+    const box = document.getElementById("variants");
+    box.addEventListener("click", function (e) {
+      // remove a whole variant
+      if (e.target.classList.contains("v-remove")) {
+        const card = e.target.closest(".variant-card"), d = card.querySelector(":scope > .v-destroy");
+        // strip required so a hidden card can't block form submission
+        card.querySelectorAll("input,select").forEach(el => el.required = false);
+        if (d) { d.value = "1"; card.style.display = "none"; } else { card.remove(); }
+        recalcAll();
+        return;
+      }
+      // add an extra component to this variant
+      if (e.target.classList.contains("add-comp")) {
+        const card = e.target.closest(".variant-card");
+        const t = card.querySelector(".comp-template");
+        card.querySelector(".vc-comps").insertAdjacentHTML("beforeend", t.innerHTML.replace(/NEW_COMP/g, Date.now().toString()));
+        return;
+      }
+      // remove an extra component
+      if (e.target.classList.contains("comp-remove")) {
+        const item = e.target.closest(".comp-item"), d = item.querySelector(".comp-destroy");
+        item.querySelectorAll("input").forEach(el => el.required = false);
+        if (d) { d.value = "1"; item.style.display = "none"; } else { item.remove(); }
+        recalcAll();
+        return;
+      }
+      // cross out a fixed component field (Tr/Back/Bazoo/Kali/Falas): zero it + hide it
+      if (e.target.classList.contains("vcf-remove")) {
+        const f = e.target.closest(".vc-f");
+        const inp = f.querySelector("input");
+        if (inp) { inp.value = "0"; inp.required = false; }
+        f.style.display = "none";
+        recalcAll();
+        return;
+      }
+    });
+
+    // ---- Live EMB / Backup / per-piece and EMB-Total (before saving) ----
+    const EMB_FACTOR = <%= Setting.value_for("emb_factor", 0.337).to_f %>;
+    const STEP = <%= Setting.value_for("rounding_step", 0.5).to_f %>;
+    const DIV = <%= Setting.value_for("backup_divisor", 39).to_f %>;
+    const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+    const ceilTo = (v, step) => (!step ? v : Math.ceil(Number((v / step).toFixed(9))) * step);
+    const headsOf = (s) => { const m = String(s || "").match(/\d+/); return m ? parseInt(m[0], 10) : 0; };
+    const valBy = (card, key) => { const el = card.querySelector('[name$="[' + key + ']"]'); return el ? num(el.value) : 0; };
+
+    function calcVariant(card) {
+      const sizeEl = card.querySelector('[name$="[size]"]');
+      const heads = headsOf(sizeEl && sizeEl.value);
+      const repeats = valBy(card, "repeats_per_color");
+      const emb = ceilTo(EMB_FACTOR * heads * repeats, STEP);
+      let comps = 0;
+      ["trousers", "back", "bazoo", "kali", "falas"].forEach((k) => {
+        const el = card.querySelector('[name$="[' + k + ']"]');
+        if (!el) return;
+        const w = el.closest(".vc-f");
+        if (w && w.style.display === "none") return; // skip crossed-out fields; hidden back (no .vc-f) still counts
+        comps += num(el.value);
+      });
+      card.querySelectorAll(".comp-item").forEach((item) => {
+        if (item.style.display === "none") return;
+        const vEl = item.querySelector('[name$="[value]"]');
+        if (vEl) comps += num(vEl.value);
+      });
+      const backup = DIV ? ceilTo((comps / DIV) * heads, STEP) : 0;
+      const perpc = heads ? (emb + backup) / heads : 0;
+      return { emb, backup, perpc };
+    }
+
+    function recalcAll() {
+      let total = 0;
+      box.querySelectorAll(".variant-card").forEach((card) => {
+        if (card.style.display === "none") return;
+        const r = calcVariant(card);
+        const set = (sel, v) => { const el = card.querySelector(sel); if (el) el.textContent = v; };
+        set(".vc-emb", r.emb);
+        set(".vc-backup", r.backup);
+        set(".vc-perpc", Math.round(r.perpc * 1000) / 1000);
+        total += r.emb + r.backup;
+      });
+      const el = document.getElementById("embTotal");
+      if (el) el.textContent = (Math.round(total * 10) / 10).toString();
+    }
+
+    document.addEventListener("input", (e) => { if (e.target.closest("#variants")) recalcAll(); });
+    recalcAll();
+  })();
+</script>

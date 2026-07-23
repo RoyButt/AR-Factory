@@ -1,0 +1,11 @@
+<div class="color-row" data-color-id="<%= cf.object.id %>" style="<%= "--tint:#{cf.object.swatch}" if cf.object.name.present? %>">
+  <div class="color-pick-wrap">
+    <%= cf.color_field :hex, value: cf.object.swatch, class: "color-swatch-input", title: "Pick any colour" %>
+    <%= cf.text_field :name, placeholder: "Colour name", class: "color-name-input" %>
+  </div>
+  <%= cf.number_field :received_gazana, step: 0.01, placeholder: "Received gaz", class: "c-recv" %>
+  <span class="c-remaining calc-cell" title="Remaining after suits cut">—</span>
+  <%= cf.hidden_field :wastage, class: "c-wast" %>
+  <%= cf.hidden_field :_destroy, value: 0, class: "cd-destroy" %>
+  <button type="button" class="cd-remove" title="Remove">✕</button>
+</div>

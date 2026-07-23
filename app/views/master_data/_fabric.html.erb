@@ -1,0 +1,28 @@
+<div class="panel-head"><h2>Fabric Types &amp; Rates</h2><span class="muted">Average rate per gaz — feeds cost cards</span></div>
+<div class="erow-table">
+  <div class="erow erow-head"><span>Name</span><span>Year</span><span>Rate (Rs/gaz)</span><span></span></div>
+
+  <% @fabric_types.each do |ft| %>
+    <div class="erow searchable" data-search="<%= ft.name %> <%= ft.year %>">
+      <%= form_with model: ft, url: fabric_type_path(ft), method: :patch, local: true, class: "erow-form" do |f| %>
+        <%= f.text_field :name, disabled: current_user.view_only? %>
+        <%= f.number_field :year, disabled: current_user.view_only? %>
+        <%= f.number_field :rate, step: 0.01, disabled: current_user.view_only? %>
+        <% unless current_user.view_only? %><%= f.submit "Save", class: "btn-sm edit" %><% end %>
+      <% end %>
+      <% unless current_user.view_only? %>
+        <%= button_to "✕", fabric_type_path(ft), method: :delete, class: "btn-icon-del",
+              form: { style: "display:inline" }, data: { turbo_confirm: "Remove #{ft.name}?" } %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% unless current_user.view_only? %>
+    <%= form_with model: FabricType.new, url: fabric_types_path, method: :post, local: true, class: "erow erow-new" do |f| %>
+      <%= f.text_field :name, placeholder: "Fabric name" %>
+      <%= f.number_field :year, placeholder: "Year", value: Time.current.year %>
+      <%= f.number_field :rate, step: 0.01, placeholder: "Rate" %>
+      <%= f.submit "+ Add", class: "btn-primary btn-sm" %>
+    <% end %>
+  <% end %>
+</div>

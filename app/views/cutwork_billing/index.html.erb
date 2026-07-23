@@ -1,0 +1,221 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>✂ Cutwork (Billing)</h1><p class="page-sub">Cutwork cost = suits × the design's Cutwork price (from its cost card), minus payments made.</p></div>
+    </div>
+
+    <div class="ps-tabs">
+      <button type="button" class="ps-tab active" data-tab="summary">Summary</button>
+      <button type="button" class="ps-tab" data-tab="detail">Details &amp; Payments</button>
+    </div>
+
+    <!-- TAB 1: SUMMARY -->
+    <div class="ps-tabpanel" data-tabpanel="summary">
+      <div class="ke-stats" style="grid-template-columns:repeat(4,1fr)">
+        <div class="ke-stat"><span>Cutwork suits</span><b><%= number_with_delimiter(@total_suits) %></b></div>
+        <div class="ke-stat ke-stat-bill"><span>Total Cutwork Cost</span><b><%= rs(@total_cutwork) %></b></div>
+        <div class="ke-stat ke-stat-ok"><span>Total Paid</span><b>− <%= rs(@total_paid) %></b></div>
+        <div class="ke-stat ke-stat-warn"><span>Remaining to Pay</span><b><%= rs(@remaining) %></b></div>
+      </div>
+      <div class="panel cwb-hero">
+        <div class="cwb-hero-row"><span>Total cutwork billed</span><b><%= rs(@total_cutwork) %></b></div>
+        <div class="cwb-hero-row"><span>Paid so far</span><b class="ok">− <%= rs(@total_paid) %></b></div>
+        <div class="cwb-hero-row cwb-hero-total"><span>Remaining to pay</span><b><%= rs(@remaining) %></b></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>By cutwork party</h2><span class="muted">who is owed what — assign parties on <%= link_to "Cutwork Progress", cutwork_progress_path %></span></div>
+        <div class="table-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Cutwork Party</th><th class="num">Earned</th><th class="num">Paid</th><th class="num">Remaining</th></tr></thead>
+            <tbody>
+              <% @by_party.each do |h| %>
+                <tr>
+                  <td><b>✂ <%= h[:name] %></b></td>
+                  <td class="num"><%= rs(h[:earned]) %></td>
+                  <td class="num kb-credit"><%= h[:paid].positive? ? "− " + rs(h[:paid]) : "—" %></td>
+                  <td class="num"><b class="<%= h[:remaining] > 0 ? 'pw-owe' : '' %>"><%= rs(h[:remaining]) %></b></td>
+                </tr>
+              <% end %>
+              <% if @by_party.empty? %><tr><td colspan="4" class="muted" style="text-align:center;padding:20px">No cutwork assigned yet.</td></tr><% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: DETAILS & PAYMENTS -->
+    <div class="ps-tabpanel" data-tabpanel="detail" style="display:none">
+      <div class="panel">
+        <div class="panel-head"><h2>How it's calculated</h2><span class="muted">suits × Cutwork price (cost card)</span></div>
+        <div class="table-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Date</th><th>Laat</th><th>Design</th><th>Cutwork Party</th><th>Colours</th><th class="num">Suits</th><th class="num">Cutwork /suit</th><th class="num">Adjustment</th><th class="num">Rate /suit</th><th class="num">Amount</th></tr></thead>
+            <tbody>
+              <% @rows.each do |r| %>
+                <tr>
+                  <td><%= r[:date]&.strftime("%d %b %Y") %></td>
+                  <td><% if r[:laat] %><b>#<%= r[:laat] %></b><% else %>—<% end %></td>
+                  <td><b><%= r[:design] %></b></td>
+                  <td><% if r[:party] %><span class="pill">✂ <%= r[:party] %></span><% else %><span class="muted">— unassigned</span><% end %></td>
+                  <td><% if r[:colours].any? %><span class="stk-swatches"><% r[:colours].each do |c| %><span class="stk-sw" style="background:<%= c[:hex] %>" title="<%= c[:name] %>"></span><% end %></span><% else %>—<% end %></td>
+                  <td class="num"><%= r[:suits] %></td>
+                  <td class="num"><%= r[:base_rate].positive? ? rs(r[:base_rate]) : "—" %></td>
+                  <td class="num">
+                    <% if current_user.view_only? %><%= r[:adjustment].to_f.zero? ? "—" : rs(r[:adjustment]) %>
+                    <% else %>
+                      <%= form_with url: set_adjustment_progress_path(r[:id]), method: :post, local: true, class: "cwadj-form" do %>
+                        <%= hidden_field_tag :return_to, "cutwork_billing" %>
+                        <span class="cwadj-wrap">Rs <input type="number" step="0.01" name="adjustment" value="<%= r[:adjustment].to_f %>" class="cwadj-inp no-spin" data-no-ss="1" onchange="this.form.requestSubmit()" title="+/− on the cutwork rate for this row only"></span>
+                      <% end %>
+                    <% end %>
+                  </td>
+                  <td class="num"><b><%= r[:rate].positive? ? rs(r[:rate]) : "—" %></b></td>
+                  <td class="num"><b><%= rs(r[:amount]) %></b></td>
+                </tr>
+              <% end %>
+              <% if @rows.empty? %><tr><td colspan="10" class="muted" style="text-align:center;padding:24px">No cutwork yet — complete a Production Sheet whose designs have Cutwork &gt; 0.</td></tr><% end %>
+            </tbody>
+            <% unless @rows.empty? %>
+              <tfoot><tr class="tot"><td colspan="5" style="text-align:right"><b>Total</b></td><td class="num"><b><%= number_with_delimiter(@total_suits) %></b></td><td colspan="3"></td><td class="num"><b><%= rs(@total_cutwork) %></b></td></tr></tfoot>
+            <% end %>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Payments <span class="muted" style="text-transform:none;font-weight:400">— remaining <b><%= rs(@remaining) %></b></span></h2>
+          <% unless current_user.view_only? %><button type="button" class="btn-sm edit" id="cwbAddPay">＋ Payment</button><% end %>
+        </div>
+        <div class="table-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Date</th><th>Paid to</th><th>Method</th><th>Notes</th><th class="num">Amount</th><th></th></tr></thead>
+            <tbody>
+              <% @payments.each do |p| %>
+                <tr>
+                  <td><%= p.paid_on&.strftime("%d %b %Y") %></td>
+                  <td><%= p.cutwork_party&.name || "—" %></td>
+                  <td><%= p.method_detail.presence || "—" %></td>
+                  <td class="muted"><%= p.notes %></td>
+                  <td class="num"><b>− <%= rs(p.amount) %></b></td>
+                  <td class="num">
+                    <span class="kb-actions">
+                      <% if p.proof.attached? %><%= link_to "📎", rails_blob_path(p.proof, disposition: "inline"), target: "_blank", class: "kb-proof", title: "Proof" %><% end %>
+                      <% unless current_user.view_only? %>
+                        <button type="button" class="btn-sm edit cwb-edit" data-id="<%= p.id %>" data-amount="<%= p.amount %>" data-date="<%= p.paid_on&.strftime('%Y-%m-%d') %>" data-method="<%= p.method_detail %>" data-notes="<%= p.notes %>" data-party="<%= p.cutwork_party_id %>">✎</button>
+                        <button type="button" class="kb-del cwb-del" data-url="<%= remove_cutwork_payment_path(id: p.id) %>" data-label="<%= rs(p.amount) %> · <%= p.paid_on&.strftime('%d %b %Y') %>">✕</button>
+                      <% end %>
+                    </span>
+                  </td>
+                </tr>
+              <% end %>
+              <% if @payments.empty? %><tr><td colspan="6" class="muted" style="text-align:center;padding:20px">No payments recorded yet.</td></tr><% end %>
+            </tbody>
+            <% unless @payments.empty? %><tfoot><tr class="tot"><td colspan="4" style="text-align:right"><b>Total paid</b></td><td class="num"><b>− <%= rs(@total_paid) %></b></td><td></td></tr></tfoot><% end %>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="cwbModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:440px">
+      <button type="button" class="ke-modal-x" id="cwbClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title" id="cwbTitle">Record cutwork payment</div>
+      <div class="ke-modal-msg">Remaining to pay: <b><%= rs(@remaining) %></b></div>
+      <%= form_with url: add_cutwork_payment_path, method: :post, local: true, html: { id: "cwbForm", multipart: true } do %>
+        <%= hidden_field_tag :payment_id, "", id: "cwb_pid" %>
+        <div class="kb-form">
+          <label class="ke-fld"><span>Paid to (cutwork party)</span>
+            <select name="cutwork_party_id" data-no-ss="1" data-default="<%= @default_cw_id %>">
+              <% @parties.each do |cp| %><option value="<%= cp.id %>" <%= "selected" if cp.id == @default_cw_id %>><%= cp.name %></option><% end %>
+              <option value="">— (unassigned)</option>
+            </select></label>
+          <label class="ke-fld"><span>Amount (Rs)</span><%= number_field_tag :amount, nil, min: 1, step: 0.01, class: "no-spin", required: true, placeholder: "e.g. 5000" %></label>
+          <label class="ke-fld"><span>Date</span><%= date_field_tag :paid_on, Date.current %></label>
+          <label class="ke-fld"><span>Method</span><%= text_field_tag :method_detail, "cash", placeholder: "cash / online", data: { no_ss: "1" } %></label>
+          <label class="ke-fld"><span>Notes</span><%= text_field_tag :notes, nil, placeholder: "optional", data: { no_ss: "1" } %></label>
+          <label class="ke-fld"><span>Payment proof <span class="muted" style="font-weight:400;text-transform:none">(optional)</span></span><%= file_field_tag :proof, accept: "image/*,application/pdf" %></label>
+          <%= submit_tag "Add payment", class: "btn-primary", id: "cwbSubmit" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div id="cwbDelModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:390px">
+      <button type="button" class="ke-modal-x" id="cwbDelClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title">Delete payment</div>
+      <div class="ke-modal-msg" id="cwbDelMsg"></div>
+      <div class="ke-modal-actions">
+        <button type="button" class="btn-soft" id="cwbDelCancel">Cancel</button>
+        <form id="cwbDelForm" method="post" action="#" style="display:inline">
+          <input type="hidden" name="_method" value="delete">
+          <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+          <button type="submit" class="btn-primary" style="background:#b0392f">Delete payment</button>
+        </form>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    var TABKEY = "tab:" + location.pathname;
+    function activateTab(tab) {
+      document.querySelectorAll(".ps-tab").forEach(function (x) { x.classList.toggle("active", x.dataset.tab === tab); });
+      document.querySelectorAll(".ps-tabpanel").forEach(function (p) { p.style.display = (p.dataset.tabpanel === tab) ? "" : "none"; });
+    }
+    document.querySelectorAll(".ps-tab").forEach(function (t) {
+      t.addEventListener("click", function () { try { sessionStorage.setItem(TABKEY, t.dataset.tab); } catch (e) {} activateTab(t.dataset.tab); });
+    });
+    (function () { var s; try { s = sessionStorage.getItem(TABKEY); } catch (e) {} if (s && document.querySelector('.ps-tab[data-tab="' + s + '"]')) activateTab(s); })();
+    var m = document.getElementById("cwbModal");
+    function setF(name, val) { var el = m.querySelector('[name="' + name + '"]'); if (el) el.value = (val == null ? "" : val); }
+    if (m) {
+      var close = function () { m.classList.remove("open"); };
+      var openAdd = document.getElementById("cwbAddPay");
+      if (openAdd) openAdd.addEventListener("click", function () {
+        setF("payment_id", ""); setF("amount", ""); setF("paid_on", ""); setF("method_detail", "cash"); setF("notes", "");
+        var ps = m.querySelector('[name="cutwork_party_id"]'); if (ps) ps.value = ps.dataset.default || "";  // default to first-created party
+        document.getElementById("cwbTitle").textContent = "Record cutwork payment";
+        document.getElementById("cwbSubmit").value = "Add payment";
+        m.classList.add("open"); var a = m.querySelector('input[name="amount"]'); if (a) a.focus();
+      });
+      // Edit a payment → prefill the modal
+      document.querySelectorAll(".cwb-edit").forEach(function (b) {
+        b.addEventListener("click", function () {
+          setF("payment_id", b.dataset.id); setF("amount", b.dataset.amount); setF("paid_on", b.dataset.date);
+          setF("method_detail", b.dataset.method); setF("notes", b.dataset.notes); setF("cutwork_party_id", b.dataset.party);
+          document.getElementById("cwbTitle").textContent = "Edit payment";
+          document.getElementById("cwbSubmit").value = "Save payment";
+          m.classList.add("open"); var a = m.querySelector('input[name="amount"]'); if (a) { a.focus(); a.select(); }
+        });
+      });
+      document.getElementById("cwbClose").addEventListener("click", close);
+      m.addEventListener("click", function (e) { if (e.target === m) close(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+    }
+    // Delete confirm modal
+    var dm = document.getElementById("cwbDelModal");
+    if (dm) {
+      var dform = document.getElementById("cwbDelForm"), dmsg = document.getElementById("cwbDelMsg");
+      var dclose = function () { dm.classList.remove("open"); };
+      document.querySelectorAll(".cwb-del").forEach(function (b) {
+        b.addEventListener("click", function () {
+          dform.setAttribute("action", b.dataset.url);
+          dmsg.innerHTML = "Really delete the payment of <b>" + (b.dataset.label || "") + "</b>? This can't be undone.";
+          dm.classList.add("open");
+        });
+      });
+      document.getElementById("cwbDelClose").addEventListener("click", dclose);
+      document.getElementById("cwbDelCancel").addEventListener("click", dclose);
+      dm.addEventListener("click", function (e) { if (e.target === dm) dclose(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") dclose(); });
+    }
+  })();
+</script>

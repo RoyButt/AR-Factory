@@ -1,0 +1,57 @@
+<div class="form-card form-card-wide">
+  <% if @party.errors.any? %>
+    <div class="error-list"><%= @party.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <%= form_with model: @party, local: true, html: { multipart: true } do |f| %>
+    <div class="cc-top">
+      <div class="cc-top-left">
+        <div class="field image-field">
+          <div class="image-field-controls">
+            <%= f.label :image, "Party image / logo" %>
+            <%= f.file_field :image, accept: "image/*", class: "js-image-input" %>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><%= f.label :name, "Name" %><%= f.text_field :name, placeholder: "Party name", required: true, id: "partyName" %></div>
+          <div class="field"><%= f.label :contact, "Contact" %><%= f.telephone_field :contact, placeholder: "03xx-xxxxxxx" %></div>
+          <div class="field"><%= f.label :email, "Email" %><%= f.email_field :email, placeholder: "party@example.com" %></div>
+          <div class="field"><%= f.label :city, "City" %><%= f.text_field :city, placeholder: "City" %></div>
+          <div class="field" style="grid-column:1 / -1"><%= f.label :address, "Address" %><%= f.text_field :address, placeholder: "Street / area" %></div>
+          <div class="field" style="grid-column:1 / -1"><%= f.label :notes, "Notes" %><%= f.text_area :notes, rows: 2, placeholder: "Anything else…" %></div>
+        </div>
+      </div>
+      <div class="img-preview cc-top-right">
+        <% if @party.image.attached? %>
+          <%= image_tag rails_blob_path(@party.image) %><span class="img-name">Current image</span>
+        <% end %>
+      </div>
+    </div>
+
+    <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+      <%= f.submit (@party.persisted? ? "Save changes" : "Add party"), class: "btn-primary", id: "partySubmit" %>
+      <%= link_to "Cancel", emb_parties_path, class: "btn-soft" %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  (function () {
+    const fileInput = document.querySelector(".js-image-input");
+    const imgBox = document.querySelector(".img-preview");
+    if (fileInput && imgBox) {
+      fileInput.addEventListener("change", function () {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        let img = imgBox.querySelector("img");
+        if (!img) { img = document.createElement("img"); imgBox.prepend(img); }
+        img.src = URL.createObjectURL(file);
+        let name = imgBox.querySelector(".preview-name");
+        if (!name) { name = document.createElement("span"); name.className = "img-name preview-name"; imgBox.appendChild(name); }
+        name.textContent = "New image (not saved yet)";
+      });
+    }
+    const code = document.getElementById("partyName"), btn = document.getElementById("partySubmit");
+    if (code && btn) { const s = () => { btn.disabled = code.value.trim() === ""; }; code.addEventListener("input", s); s(); }
+  })();
+</script>

@@ -1,0 +1,278 @@
+<div class="form-card form-card-wide">
+  <% if @card.errors.any? %>
+    <div class="error-list"><%= @card.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <%= form_with model: @card, url: (@card.persisted? ? cost_card_path(@card) : cost_cards_path),
+                method: (@card.persisted? ? :patch : :post), local: true, html: { multipart: true } do |f| %>
+
+    <div class="form-section-title" style="border-top:none;margin-top:0;padding-top:0">Design &amp; Price Lines</div>
+    <div class="cc-top">
+      <div class="cc-top-left">
+        <div class="field">
+          <%= f.label :picture, "Product image" %>
+          <%= f.file_field :picture, accept: "image/*", class: "js-image-input" %>
+        </div>
+        <div class="fixed-grid">
+          <div class="field"><%= f.label :code, "Design code" %><%= f.text_field :code, placeholder: "AR-299", required: true, id: "cardCode" %></div>
+          <div class="field"><%= f.label :fabric_rate, "Fabric rate (Rs)" %><%= f.number_field :fabric_rate, step: 0.01 %></div>
+          <div class="field"><%= f.label :fabric_multiplier, "Fabric × (gaz/suit)" %><%= f.number_field :fabric_multiplier, step: 0.1 %></div>
+          <div class="field"><%= f.label :cmt, "CMT" %><%= f.number_field :cmt, step: 0.01 %></div>
+          <div class="field"><%= f.label :cm, "CM" %><%= f.number_field :cm, step: 0.01 %></div>
+        </div>
+
+        <div class="form-section-subtitle">Additional / removable costs</div>
+        <div class="form-grid removable-grid">
+          <div class="field removable"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :cut_work, "Cut work" %><%= f.number_field :cut_work, step: 0.01 %></div>
+          <div class="field removable"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :hand_made, "Hand Made" %><%= f.number_field :hand_made, step: 0.01 %></div>
+          <div class="field removable"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :lass, "Lass" %><%= f.number_field :lass, step: 0.01 %></div>
+          <div class="field field-date"><%= f.label :card_date, "Date" %><%= f.date_field :card_date %></div>
+          <div id="costLines" style="display: contents">
+            <%= f.fields_for :cost_lines do |cl| %>
+              <%= render "cost_line_fields", cl: cl %>
+            <% end %>
+          </div>
+        </div>
+        <template id="cost-line-template">
+          <%= f.fields_for :cost_lines, CostLine.new, child_index: "NEW_CL" do |cl| %>
+            <%= render "cost_line_fields", cl: cl %>
+          <% end %>
+        </template>
+        <button type="button" id="addCostLine" class="btn-soft" style="margin-top:10px">+ Add cost line</button>
+      </div>
+
+      <div class="img-preview cc-top-right" <%= "data-rotate-url=#{rotate_image_cost_card_path(@card)}".html_safe if @card.persisted? %>>
+        <% if @card.picture.attached? %>
+          <%= image_tag rails_blob_path(@card.picture) %>
+          <div class="img-tools">
+            <button type="button" class="img-rotate btn-soft btn-xs" data-deg="-90" title="Rotate left 90°">↺ Left</button>
+            <button type="button" class="img-rotate btn-soft btn-xs" data-deg="90" title="Rotate right 90°">↻ Right</button>
+            <span class="img-name">rotates &amp; saves the image</span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="form-section-title">Embroidery Files (EMB Rate)</div>
+    <p class="muted" style="margin-bottom:10px">Total per file = ROUND((stitch ÷ 1000) × rate × head, 0) × reapts. EMB Cost = subtotal + EMB add-on.</p>
+    <div class="emb-head"><span>File Name</span><span>Stitch</span><span>Head</span><span>Reapts</span><span>Rate</span><span></span></div>
+    <div id="embFiles">
+      <%= f.fields_for :emb_files do |ef| %>
+        <%= render "emb_fields", ef: ef %>
+      <% end %>
+    </div>
+    <template id="emb-template">
+      <%= f.fields_for :emb_files, EmbFile.new(reapts: 1), child_index: "NEW_RECORD" do |ef| %>
+        <%= render "emb_fields", ef: ef %>
+      <% end %>
+    </template>
+    <button type="button" id="addEmb" class="btn-soft" style="margin-top:10px">+ Add file</button>
+
+    <div class="emb-subtotal-line">
+      <span>EMB sub-total</span>
+      <b id="embSubtotal">—</b>
+    </div>
+
+    <% ai = 0 %>
+    <div class="form-section-title">EMB Cost add-ons <span class="muted" style="text-transform:none;font-weight:400">— added on top of the EMB sub-total</span></div>
+    <div class="addon2-head"><span>Label</span><span>Amount</span><span></span></div>
+    <div id="embAddons">
+      <% @card.emb_addons.each do |ad| %>
+        <% ai += 1 %>
+        <%= f.fields_for :card_addons, ad, child_index: (ad.persisted? ? ad.id : ai) do |af| %>
+          <%= render "addon_row", af: af %>
+        <% end %>
+      <% end %>
+    </div>
+    <template id="emb-addon-template">
+      <%= f.fields_for :card_addons, CardAddon.new(target: "emb"), child_index: "NEW_EMBADDON" do |af| %>
+        <%= render "addon_row", af: af %>
+      <% end %>
+    </template>
+    <button type="button" id="addEmbAddon" class="btn-soft" style="margin-top:8px">+ Add EMB add-on</button>
+
+    <div class="form-section-title">Final Rate add-ons <span class="muted" style="text-transform:none;font-weight:400">— added on top of the Total</span></div>
+    <div class="addon2-head"><span>Label</span><span>Amount</span><span></span></div>
+    <div id="finalAddons">
+      <% @card.final_addons.each do |ad| %>
+        <% ai += 1 %>
+        <%= f.fields_for :card_addons, ad, child_index: (ad.persisted? ? ad.id : ai) do |af| %>
+          <%= render "addon_row", af: af %>
+        <% end %>
+      <% end %>
+    </div>
+    <template id="final-addon-template">
+      <%= f.fields_for :card_addons, CardAddon.new(target: "final"), child_index: "NEW_FINADDON" do |af| %>
+        <%= render "addon_row", af: af %>
+      <% end %>
+    </template>
+    <button type="button" id="addFinalAddon" class="btn-soft" style="margin-top:8px">+ Add Final add-on</button>
+
+    <div class="form-section-title">Party Pricing <span class="muted" style="text-transform:none;font-weight:400">— different rate per party</span></div>
+    <p class="muted" style="margin-bottom:10px">Markup % or +/- amount is applied to the base final rate; "Fixed price" sets an absolute rate.</p>
+    <div class="party-head"><span>Party</span><span>Basis</span><span>Value</span><span>Note</span><span></span></div>
+    <div id="partyPrices">
+      <%= f.fields_for :party_prices do |pf| %>
+        <%= render "party_fields", pf: pf %>
+      <% end %>
+    </div>
+    <template id="party-template">
+      <%= f.fields_for :party_prices, PartyPrice.new(pricing_mode: "markup_pct"), child_index: "NEW_PARTY" do |pf| %>
+        <%= render "party_fields", pf: pf %>
+      <% end %>
+    </template>
+    <button type="button" id="addParty" class="btn-soft" style="margin-top:10px">+ Add party</button>
+
+    <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+      <%= f.submit (@card.persisted? ? "Save changes" : "Create card"), class: "btn-primary", id: "cardSubmit" %>
+      <%= link_to "Cancel", (@card.persisted? ? cost_card_path(@card) : cost_cards_path), class: "btn-soft" %>
+    </div>
+  <% end %>
+
+  <% if @card.persisted? %>
+    <div style="margin-top:14px; border-top:1px solid #eef1f4; padding-top:14px">
+      <%= button_to "Delete card", cost_card_path(@card), method: :delete, class: "btn-sm del",
+            form: { data: { turbo_confirm: "Delete #{@card.code}?" } } %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  (function () {
+    const tpl = document.getElementById("emb-template"), box = document.getElementById("embFiles");
+    document.getElementById("addEmb").addEventListener("click", function () {
+      const rows = box.querySelectorAll(".emb-row");
+      const last = rows[rows.length - 1];              // the row filled above
+      box.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/NEW_RECORD/g, Date.now().toString()));
+      const added = box.lastElementChild;
+      if (last && added) {                             // copy Head / Reapts / Rate (NOT Stitch or File Name)
+        ["heads", "reapts", "rate"].forEach((k) => {
+          const src = last.querySelector('[name$="[' + k + ']"]');
+          const dst = added.querySelector('[name$="[' + k + ']"]');
+          if (src && dst) dst.value = src.value;
+        });
+      }
+    });
+    box.addEventListener("click", function (e) {
+      if (!e.target.classList.contains("ef-remove")) return;
+      const row = e.target.closest(".emb-row"), d = row.querySelector(".ef-destroy");
+      if (d) { d.value = "1"; row.style.display = "none"; } else { row.remove(); }
+      setTimeout(embSubtotal, 0);
+    });
+
+    // Live EMB sub-total = Σ ROUND((stitch ÷ div) × rate × head, 0) × reapts  (same formula as the view page)
+    const STITCH_DIV = <%= Setting.value_for("stitch_divisor", 1000).to_f %>;
+    const numv = (el) => { const n = parseFloat(el && el.value); return isNaN(n) ? 0 : n; };
+    function embSubtotal() {
+      let sum = 0;
+      box.querySelectorAll(".emb-row").forEach((row) => {
+        if (row.style.display === "none") return;
+        const stitch = numv(row.querySelector('[name$="[stitch]"]'));
+        const head   = numv(row.querySelector('[name$="[heads]"]'));
+        const reapts = numv(row.querySelector('[name$="[reapts]"]'));
+        const rate   = numv(row.querySelector('[name$="[rate]"]'));
+        sum += (STITCH_DIV ? Math.round((stitch / STITCH_DIV) * rate * head) : 0) * reapts;
+      });
+      const el = document.getElementById("embSubtotal");
+      if (el) el.textContent = "Rs " + (Math.round(sum)).toLocaleString();
+    }
+    box.addEventListener("input", embSubtotal);
+    box.addEventListener("change", embSubtotal);
+    document.getElementById("addEmb").addEventListener("click", function () { setTimeout(embSubtotal, 0); });
+    embSubtotal();
+
+    const ctpl = document.getElementById("cost-line-template"), cbox = document.getElementById("costLines");
+    document.getElementById("addCostLine").addEventListener("click", function () {
+      cbox.insertAdjacentHTML("beforeend", ctpl.innerHTML.replace(/NEW_CL/g, Date.now().toString()));
+    });
+    cbox.addEventListener("click", function (e) {
+      if (!e.target.classList.contains("cl-remove")) return;
+      const row = e.target.closest(".cl-field"), d = row.querySelector(".cl-destroy");
+      if (d) { d.value = "1"; row.style.display = "none"; } else { row.remove(); }
+    });
+
+    function wireAddon(btnId, boxId, tplId, ph) {
+      var tpl = document.getElementById(tplId), box = document.getElementById(boxId);
+      document.getElementById(btnId).addEventListener("click", function () {
+        box.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(new RegExp(ph, "g"), Date.now().toString()));
+      });
+      box.addEventListener("click", function (e) {
+        if (!e.target.classList.contains("a2-remove")) return;
+        var row = e.target.closest(".addon2-row"), d = row.querySelector(".a2-destroy");
+        if (d) { d.value = "1"; row.style.display = "none"; } else { row.remove(); }
+      });
+    }
+    wireAddon("addEmbAddon", "embAddons", "emb-addon-template", "NEW_EMBADDON");
+    wireAddon("addFinalAddon", "finalAddons", "final-addon-template", "NEW_FINADDON");
+
+    const ptpl = document.getElementById("party-template"), pbox = document.getElementById("partyPrices");
+    document.getElementById("addParty").addEventListener("click", function () {
+      pbox.insertAdjacentHTML("beforeend", ptpl.innerHTML.replace(/NEW_PARTY/g, Date.now().toString()));
+    });
+    pbox.addEventListener("click", function (e) {
+      if (!e.target.classList.contains("pf-remove")) return;
+      const row = e.target.closest(".party-row"), d = row.querySelector(".pf-destroy");
+      if (d) { d.value = "1"; row.style.display = "none"; } else { row.remove(); }
+    });
+
+    // Show a live preview when a product image file is chosen (new or edit, before saving).
+    const fileInput = document.querySelector(".js-image-input");
+    const imgBox = document.querySelector(".img-preview");
+    if (fileInput && imgBox) {
+      fileInput.addEventListener("change", function () {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        let img = imgBox.querySelector("img");
+        if (!img) { img = document.createElement("img"); imgBox.prepend(img); }
+        img.src = url;
+        let name = imgBox.querySelector(".preview-name");
+        if (!name) {
+          name = document.createElement("span");
+          name.className = "img-name preview-name";
+          imgBox.appendChild(name);
+        }
+        name.textContent = "New image (not saved yet)";
+      });
+    }
+
+    // Disable the Save button until a Design code is entered.
+    const codeInput = document.getElementById("cardCode");
+    const submitBtn = document.getElementById("cardSubmit");
+    if (codeInput && submitBtn) {
+      const syncSubmit = () => { submitBtn.disabled = codeInput.value.trim() === ""; };
+      codeInput.addEventListener("input", syncSubmit);
+      syncSubmit();
+    }
+
+    // Cross out a removable field: clear its value (drops out of the total) and hide it.
+    const grid = document.querySelector(".form-grid");
+    if (grid) {
+      grid.addEventListener("click", function (e) {
+        const btn = e.target.closest(".field-remove");
+        if (!btn) return;
+        const field = btn.closest(".field");
+        field.querySelectorAll("input, select").forEach((el) => (el.value = ""));
+        field.style.display = "none";
+      });
+    }
+
+    // Rotate the product image (server-side, permanent) then reload to show it.
+    const preview = document.querySelector(".img-preview[data-rotate-url]");
+    if (preview) {
+      const token = (document.querySelector('meta[name="csrf-token"]') || {}).content;
+      preview.addEventListener("click", function (e) {
+        const btn = e.target.closest(".img-rotate");
+        if (!btn) return;
+        preview.querySelectorAll(".img-rotate").forEach((b) => (b.disabled = true));
+        fetch(preview.dataset.rotateUrl, {
+          method: "POST",
+          headers: { "X-CSRF-Token": token, "Content-Type": "application/x-www-form-urlencoded" },
+          body: "deg=" + encodeURIComponent(btn.dataset.deg),
+          credentials: "same-origin"
+        }).then(() => window.location.reload())
+          .catch(() => { window.location.reload(); });
+      });
+    }
+  })();
+</script>

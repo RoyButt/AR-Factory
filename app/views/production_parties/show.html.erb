@@ -1,0 +1,42 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>🧷 <%= @party.name %></h1><p class="page-sub">Production party — details &amp; CNIC.</p></div>
+      <div class="row-actions">
+        <%= link_to "← All parties", production_parties_path, class: "btn-soft" %>
+        <% unless current_user.view_only? %><%= link_to "✎ Edit", edit_production_party_path(@party), class: "btn-primary" %><% end %>
+      </div>
+    </div>
+
+    <div class="panel pp-detail">
+      <div class="pp-photo-view">
+        <% if @party.photo.attached? %><%= image_tag rails_blob_path(@party.photo), class: "pp-photo-lg", alt: "Profile picture" %>
+        <% else %><div class="pp-photo-lg pp-photo-empty"><%= @party.name.to_s.first.to_s.upcase.presence || "🧷" %></div><% end %>
+      </div>
+      <div class="pp-fields">
+        <div class="pp-field"><span>Name</span><b><%= @party.name %></b></div>
+        <div class="pp-field"><span>Contact number</span><b><%= @party.contact.presence || "—" %></b></div>
+        <div class="pp-field"><span>Additional contact / family</span><b><%= @party.family_contact.presence || "—" %></b></div>
+        <div class="pp-field"><span>Notes</span><b><%= @party.notes.presence || "—" %></b></div>
+        <div class="pp-field"><span>Advance paid</span><b><%= @party.advance_amount > 0 ? rs(@party.advance_amount) : "—" %></b></div>
+        <div class="pp-field"><span>Balance (we owe)</span><b class="<%= "pp-owe" if @party.balance > 0 %>"><%= rs(@party.balance) %><% if @party.balance < 0 %> <span class="muted" style="font-weight:400">(advance/credit ahead of work)</span><% end %></b></div>
+      </div>
+
+      <div class="cnic-view">
+        <div class="cnic-box">
+          <div class="cnic-label">CNIC — Front</div>
+          <% if @party.cnic_front.attached? %>
+            <%= image_tag rails_blob_path(@party.cnic_front), class: "cnic-img", alt: "CNIC front" %>
+          <% else %><div class="cnic-empty">No image</div><% end %>
+        </div>
+        <div class="cnic-box">
+          <div class="cnic-label">CNIC — Back</div>
+          <% if @party.cnic_back.attached? %>
+            <%= image_tag rails_blob_path(@party.cnic_back), class: "cnic-img", alt: "CNIC back" %>
+          <% else %><div class="cnic-empty">No image</div><% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

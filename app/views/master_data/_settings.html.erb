@@ -1,0 +1,49 @@
+<div class="panel-head">
+  <h2>Formulas &amp; Constants</h2>
+  <span class="muted">Every calculation in the app, what it does, and the constants you can change</span>
+</div>
+
+<!-- Read-only formula reference -->
+<div class="formula-list">
+  <% @formulas.each do |frm| %>
+    <div class="formula-card searchable"
+         data-search="<%= frm[:name] %> <%= frm[:desc] %> <%= frm[:keys].join(' ') %>">
+      <div class="formula-name"><%= frm[:name] %></div>
+      <div class="formula-expr"><%= frm[:expr] %></div>
+      <div class="formula-desc"><%= frm[:desc] %></div>
+      <% if frm[:keys].any? %>
+        <div class="formula-chips">
+          <% frm[:keys].each do |key| %>
+            <% s = @settings_by_key[key]; next unless s %>
+            <span class="const-chip"><code><%= s.key %></code> = <b><%= s.value.to_s.sub(/\.?0+$/, "") %></b></span>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<!-- Editable constants (each one once) -->
+<div class="constants-block">
+  <div class="constants-title">Adjustable Constants</div>
+  <%= form_with url: settings_path, method: :patch, local: true do %>
+    <% @settings.group_by(&:grouping).each do |group, items| %>
+      <div class="setting-group">
+        <div class="setting-group-title"><%= group %></div>
+        <% items.each do |s| %>
+          <div class="setting-row">
+            <div class="setting-label"><%= s.label %> <code><%= s.key %></code></div>
+            <%= number_field_tag "settings[#{s.id}][value]", s.value.to_s.sub(/\.?0+$/, ""),
+                  step: "any", class: "setting-input", disabled: current_user.view_only? %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+    <% unless current_user.view_only? %>
+      <div style="margin-top:16px">
+        <%= submit_tag "Save constants", class: "btn-primary" %>
+        <span class="muted" style="margin-left:10px">Changes instantly update every design's computed consumption.</span>
+      </div>
+    <% end %>
+  <% end %>
+</div>

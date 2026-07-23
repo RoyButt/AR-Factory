@@ -1,0 +1,176 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>In Stock</h1>
+        <p class="page-sub">Fully-returned laats — auto-fetched from Khatta (Emb) once all suits are back. Send each to the Supervisor for stitching.</p>
+      </div>
+    </div>
+
+
+    <div class="panel">
+      <div class="lot-filter">
+        <div class="md-search-bar">
+          <span class="md-search-ic">⌕</span>
+          <input type="text" id="stkSearch" class="md-search" placeholder="Search product, source, month…">
+        </div>
+        <label class="lot-filter-field"><span>Laat</span>
+          <select id="stkLaat"><option value="">All</option><% @laats.each do |l| %><option value="<%= l %>"><%= "##{l}" %></option><% end %></select>
+        </label>
+        <label class="lot-filter-field"><span>Month</span>
+          <select id="stkMonth"><option value="">All</option><% @months.each do |m| %><option value="<%= m %>"><%= m %></option><% end %></select>
+        </label>
+        <label class="lot-filter-field"><span>Contractor</span>
+          <select id="stkSource"><option value="">All</option><% @sources.each do |s| %><option value="<%= s %>"><%= s %></option><% end %></select>
+        </label>
+        <label class="lot-filter-field"><span>Design</span>
+          <select id="stkProduct"><option value="">All</option><% @products.each do |p| %><option value="<%= p %>"><%= p %></option><% end %></select>
+        </label>
+        <label class="lot-filter-field"><span>Status</span>
+          <select id="stkStatus"><option value="">All</option><option value="notsent">Not sent for stitching</option><option value="sent">Sent for stitching</option></select>
+        </label>
+        <span class="md-search-count" id="stkCount"></span>
+      </div>
+
+      <div class="tab-scroll">
+        <table class="utable">
+          <thead><tr><th>Date</th><th>Laat</th><th>In Stock From</th><th>Product Name</th><th>Colour</th><th class="num">IN Quantity</th><th>Date of Work Start</th><th style="text-align:right" data-lock>Action</th></tr></thead>
+          <tbody>
+            <% @rows.each do |r| %>
+              <% mth = r[:date]&.strftime("%B %Y") %>
+              <tr class="stk-row" data-search="<%= [r[:date]&.strftime('%d %b %Y'), mth, r[:laat], r[:source], r[:product]].compact.join(' ').downcase %>" data-laat="<%= r[:laat] %>" data-month="<%= mth %>" data-source="<%= r[:source] %>" data-product="<%= r[:product] %>" data-sent="<%= r[:sent] ? 'sent' : 'notsent' %>">
+                <td><%= r[:date]&.strftime("%d %b %Y") || "—" %></td>
+                <td><% if r[:laat] %><b>#<%= r[:laat] %></b><% else %>—<% end %></td>
+                <td><%= r[:source].presence || "—" %></td>
+                <td><b><%= r[:product] %></b></td>
+                <td>
+                  <% if r[:colours].any? %>
+                    <span class="stk-swatches">
+                      <% r[:colours].each do |c| %><span class="stk-sw" style="background:<%= c[:hex] %>" title="<%= c[:name] %>"></span><% end %>
+                    </span>
+                  <% else %>—<% end %>
+                </td>
+                <td class="num"><%= number_with_delimiter(r[:qty] == r[:qty].to_i ? r[:qty].to_i : r[:qty].round(2)) %><% if r[:unit].present? %> <span class="muted"><%= r[:unit] %></span><% end %></td>
+                <td class="stk-startcol"><% if r[:start_on] %><b><%= r[:start_on].strftime("%d %b %Y") %></b><% else %><span class="muted">–</span><% end %></td>
+                <td style="text-align:right">
+                  <% if r[:sent] %>
+                    <span class="stk-cta-wrap">
+                      <span class="stk-sent">🪡 Sent to stitching</span>
+                      <% unless current_user.view_only? %>
+                        <%= button_to "Cancel", cancel_stitching_stock_entries_path(emb_id: r[:emb_id]), method: :post,
+                              class: "btn-sm stk-disallow", form: { style: "display:inline", class: "stk-cancel-form" },
+                              data: { turbo_confirm: "Cancel stitching for Laat ##{r[:laat]} (#{r[:product]})? It returns to stock so you can re-send." } %>
+                      <% end %>
+                    </span>
+                  <% elsif !current_user.view_only? %>
+                    <button type="button" class="btn-sm btn-primary stk-send-one"
+                            data-id="<%= r[:emb_id] %>" data-laat="<%= r[:laat] %>" data-design="<%= r[:product] %>" data-qty="<%= r[:qty].to_i %>">🪡 Send for Stitching</button>
+                  <% else %><span class="muted" style="font-size:12px">—</span><% end %>
+                </td>
+              </tr>
+            <% end %>
+            <tr id="stkNoMatch" class="hidden"><td colspan="8" class="muted" style="text-align:center;padding:24px">No entries match your filter.</td></tr>
+            <% if @rows.empty? %><tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nothing in stock yet — a laat appears here only once all its suits are fully returned in Khatta (Emb).</td></tr><% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="stkModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:430px">
+      <button type="button" class="ke-modal-x" id="stkModalClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title">Send for Stitching → Supervisor</div>
+      <div class="ke-modal-msg" id="stkModalMsg"></div>
+      <%= form_with url: send_for_stitching_stock_entries_path, method: :post, local: true, id: "stkSendForm" do %>
+        <%= hidden_field_tag :emb_id, "", id: "stk_did" %>
+        <div class="kb-form">
+          <label class="ke-fld"><span>Start stitching on</span>
+            <%= date_field_tag :start_on, Date.current, required: true %></label>
+          <span class="muted" style="font-size:12px">The day the Supervisor is directed to start stitching this laat.</span>
+          <%= submit_tag "🪡 Send to Supervisor", class: "btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    function refs() {
+      return {
+        q: document.getElementById("stkSearch"), la: document.getElementById("stkLaat"),
+        mo: document.getElementById("stkMonth"), so: document.getElementById("stkSource"),
+        pr: document.getElementById("stkProduct"), stt: document.getElementById("stkStatus"),
+        count: document.getElementById("stkCount"), noMatch: document.getElementById("stkNoMatch")
+      };
+    }
+    function wireFilters() {
+      var r = refs(); if (!r.q || r.q._w) return; r.q._w = 1;
+      var rows = Array.prototype.slice.call(document.querySelectorAll(".stk-row"));
+      function apply() {
+        var term = r.q.value.trim().toLowerCase(), l = r.la.value, m = r.mo.value, s = r.so.value, p = r.pr.value, st = r.stt.value, n = 0;
+        rows.forEach(function (row) {
+          var ok = (!term || (row.dataset.search || "").indexOf(term) >= 0) &&
+                   (!l || row.dataset.laat === l) && (!m || row.dataset.month === m) &&
+                   (!s || row.dataset.source === s) && (!p || row.dataset.product === p) &&
+                   (!st || row.dataset.sent === st);
+          row.style.display = ok ? "" : "none"; if (ok) n++;
+        });
+        if (r.noMatch) r.noMatch.classList.toggle("hidden", n !== 0 || rows.length === 0);
+        r.count.textContent = (term || l || m || s || p || st) ? (n + " of " + rows.length) : "";
+      }
+      [r.q, r.la, r.mo, r.so, r.pr, r.stt].forEach(function (el) { el.addEventListener("input", apply); el.addEventListener("change", apply); });
+      apply();
+    }
+
+    // Send for Stitching → modal asks for the start date, posts to Supervisor (AJAX, stays on this page)
+    var modal = document.getElementById("stkModal");
+    function closeM() { if (modal) modal.classList.remove("open"); }
+    function wireSend() {
+      document.querySelectorAll(".stk-send-one").forEach(function (b) {
+        if (b._w || !modal) return; b._w = 1;
+        b.addEventListener("click", function () {
+          document.getElementById("stk_did").value = b.dataset.id;
+          document.getElementById("stkModalMsg").innerHTML =
+            "Send <b>" + b.dataset.qty + "</b> suits (Laat #" + b.dataset.laat + " · " + b.dataset.design + ") to the Supervisor for stitching.";
+          modal.classList.add("open");
+          var d = modal.querySelector('input[name="start_on"]'); if (d) d.focus();
+        });
+      });
+    }
+    if (modal) {
+      document.getElementById("stkModalClose").addEventListener("click", closeM);
+      modal.addEventListener("click", function (e) { if (e.target === modal) closeM(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeM(); });
+    }
+
+    function swapMain(html) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      var nm = doc.querySelector(".main"), cm = document.querySelector(".main");
+      if (!nm || !cm) { window.location.reload(); return; }
+      var y = window.scrollY;
+      cm.innerHTML = nm.innerHTML;
+      wireFilters(); wireSend(); closeM();
+      var fl = doc.querySelector("[data-flash]");
+      if (fl) { document.body.appendChild(fl); setTimeout(function () { fl.classList.add("flash-hide"); }, 2600); setTimeout(function () { fl.remove(); }, 3100); }
+      window.scrollTo(0, y);
+    }
+    document.addEventListener("submit", function (e) {
+      var form = e.target.closest("#stkSendForm, .stk-cancel-form");
+      if (!form) return;
+      e.preventDefault();
+      var msg = (e.submitter && e.submitter.getAttribute("data-turbo-confirm")) || form.getAttribute("data-turbo-confirm");
+      if (msg && !window.confirm(msg)) return;
+      var fd = new FormData(form);
+      if (e.submitter && e.submitter.name) fd.append(e.submitter.name, e.submitter.value);
+      fetch(form.getAttribute("action"), { method: "post", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) { return r.text(); }).then(swapMain).catch(function () { window.location.reload(); });
+    });
+
+    wireFilters(); wireSend();
+  })();
+</script>

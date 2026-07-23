@@ -1,0 +1,58 @@
+<div class="side">
+  <div class="brand">AR-Unit<small>Factory Management System</small></div>
+
+  <%# collapsible groups — anchor key => [label, icon, child keys in order] %>
+  <% nav_groups = {
+       "costing"    => ["Cost Cards", "🧾", %w[costing stitch_cost]],
+       "emb_party"  => ["Parties", "🤝", %w[emb_party emb_master cutwork_party handmade_party prod_party]],
+       "stitching"  => ["Suit Stitching", "🪡", %w[stitching production_sheet cutwork_prog handmade_prog]],
+       "prod_khata" => ["Khatta (Production)", "💵", %w[prod_payroll prod_khata cutwork_bill handwork_bill]]
+     } %>
+  <% grouped = nav_groups.values.flat_map { |g| g[2] } %>
+  <% User::SECTIONS.each do |key, (label, icon)| %>
+    <% if nav_groups.key?(key) %>
+      <% glabel, gicon, gchildren = nav_groups[key] %>
+      <% kids = gchildren.select { |k| current_user.can_see?(k) && section_live?(k) } %>
+      <% if kids.any? %>
+        <% open = kids.any? { |k| active_section?(k) } %>
+        <div class="nav-group <%= 'open' if open %>">
+          <button type="button" class="nav nav-parent" aria-expanded="<%= open %>">
+            <span class="ic"><%= gicon %></span><span class="np-label"><%= glabel %></span>
+            <svg class="np-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-children">
+            <% kids.each do |k| %>
+              <%= link_to section_path(k), class: "nav nav-child #{'active' if active_section?(k)}" do %>
+                <span class="ic"><%= User::SECTIONS[k][1] %></span><%= User::SECTIONS[k][0] %>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% elsif grouped.include?(key) %>
+      <%# non-anchor child — rendered inside its group above %>
+    <% else %>
+      <% next unless current_user.can_see?(key) && section_live?(key) %>
+      <%= link_to section_path(key), class: "nav #{'active' if active_section?(key)}" do %>
+        <span class="ic"><%= icon %></span><%= label %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <div class="side-user" id="sideUser">
+    <div class="suser-menu hidden" id="userMenu">
+      <%= button_to logout_path, method: :delete, class: "suser-signout" do %>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Sign out</span>
+      <% end %>
+    </div>
+    <button type="button" class="suser" id="sideUserRow">
+      <span class="suser-avatar"><%= current_user.name.first.upcase %></span>
+      <span class="suser-info">
+        <span class="suser-name"><%= current_user.name %></span>
+        <span class="suser-role"><%= current_user.display_role %><%= " · View only" if current_user.view_only? %></span>
+      </span>
+      <svg class="suser-caret" id="userCaret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  </div>
+</div>

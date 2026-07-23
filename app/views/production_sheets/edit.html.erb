@@ -1,0 +1,361 @@
+<% prepared = @sheet.prepared? %>
+<% targets = Array(@sheet.targets) %>
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top no-print">
+      <div><h1>📄 Production Sheet</h1>
+        <p class="page-sub"><% if prepared %>Prepared from stitching — designs &amp; targets fixed. Distribute each row's suits to persons; the next row unlocks when a row's total equals its target.<% else %>Designs as rows, production persons as columns — fill left‑to‑right, row by row.<% end %></p>
+      </div>
+      <div class="row-actions">
+        <%= link_to "← All sheets", production_sheets_path, class: "btn-soft" %>
+        <button type="button" class="btn-soft" id="psPrint">🖨 Print</button>
+      </div>
+    </div>
+
+    <% vals = (@sheet.values || {}) %>
+    <% hidden = Array(@sheet.hidden_cols).map(&:to_s) %>
+    <% cols = @parties.reject { |p| hidden.include?(p.id.to_s) } %>
+
+    <%= form_with model: @sheet, url: (@sheet.persisted? ? production_sheet_path(@sheet) : production_sheets_path),
+                  method: (@sheet.persisted? ? :patch : :post), local: true, html: { id: "psForm" } do |f| %>
+      <%= hidden_field_tag "production_sheet[rows]", "", id: "ps_rows" %>
+      <%= hidden_field_tag "production_sheet[values]", "", id: "ps_values" %>
+      <%= hidden_field_tag "production_sheet[hidden_cols]", "", id: "ps_hidden" %>
+      <%= hidden_field_tag :new_party, "", id: "ps_new_party" %>
+
+      <div class="panel ps-panel" data-existing-hidden="<%= hidden.to_json %>" data-prepared="<%= prepared %>">
+        <div class="ps-toolbar no-print">
+          <% if prepared %>
+            <div class="ke-fld"><span>Date</span><b class="ps-fixed-val"><%= (@sheet.sheet_date || Date.current).strftime("%d %b %Y") %></b></div>
+            <div class="ke-fld"><span>Day</span><b class="ps-fixed-val"><%= @sheet.day.presence || Date.current.strftime("%A") %></b></div>
+            <%= hidden_field_tag "production_sheet[sheet_date]", (@sheet.sheet_date || Date.current) %>
+            <%= hidden_field_tag "production_sheet[day]", (@sheet.day.presence || Date.current.strftime("%A")) %>
+          <% else %>
+            <label class="ke-fld"><span>Date</span><%= date_field_tag "production_sheet[sheet_date]", (@sheet.sheet_date || Date.current) %></label>
+            <label class="ke-fld"><span>Day</span><%= text_field_tag "production_sheet[day]", (@sheet.day.presence || Date.current.strftime("%A")), data: { no_ss: "1" } %></label>
+          <% end %>
+          <span style="flex:1"></span>
+          <% if prepared && !current_user.view_only? %><button type="button" class="btn-soft ps-claim-open" id="psClaimOpen">⚠ Claim ruined suits</button><% end %>
+          <% unless prepared %><button type="button" class="btn-soft" id="psAddRow">＋ Row</button><% end %>
+          <button type="button" class="btn-soft" id="psAddCol">＋ Member (column)</button>
+          <% has_hidden = @parties.any? { |p| hidden.include?(p.id.to_s) } %>
+          <span class="ps-readd" id="psReadd"<%= " style=display:none".html_safe unless has_hidden %>>
+            <select class="ps-readd-sel" id="psReaddSel" data-no-ss="1" title="Persons removed from this sheet">
+              <% @parties.each do |p| %>
+                <% if hidden.include?(p.id.to_s) %><option value="<%= p.id %>"><%= p.name %></option><% end %>
+              <% end %>
+            </select>
+            <button type="button" class="btn-soft" id="psReaddBtn">↩ Add back</button>
+          </span>
+          <%= f.submit "Save", class: "btn-primary", id: "psSave" %>
+        </div>
+        <% if prepared %><div class="ps-error no-print hidden" id="psError">⚠ A row's distributed suits exceed its net‑suit target. Correct the highlighted row(s) to save.</div><% end %>
+
+        <div class="ps-print-head">Date: <b><%= (@sheet.sheet_date || Date.current).strftime("%d / %m / %Y") %></b> &nbsp;&nbsp; Day: <b><%= @sheet.day.presence || Date.current.strftime("%A") %></b></div>
+
+        <div class="table-scroll">
+          <table class="ps-grid" id="psGrid">
+            <thead>
+              <tr>
+                <th class="ps-design-h">Design</th>
+                <% if prepared %><th class="ps-target-h">Target</th><% end %>
+                <% cols.each do |p| %>
+                  <th class="ps-col" data-p="<%= p.id %>">
+                    <span class="ps-col-name"><%= p.name %></span>
+                    <button type="button" class="ps-col-del no-print" data-p="<%= p.id %>" title="Remove this column from this sheet (person is not deleted)">✕</button>
+                  </th>
+                <% end %>
+                <% if prepared %><th class="ps-filled-h">Given</th><% end %>
+                <% unless prepared %><th class="no-print ps-rowact"></th><% end %>
+              </tr>
+            </thead>
+            <tbody id="psBody">
+              <% @sheet.rows.each_with_index do |design, i| %>
+                <tr class="ps-row" <%= "data-target=#{targets[i].to_i}".html_safe if prepared %>>
+                  <% if prepared %>
+                    <td class="ps-design-c ps-design-fixed" data-design="<%= design %>"><b><%= design %></b></td>
+                    <td class="ps-target-c" data-target="<%= targets[i].to_i %>"><b><%= targets[i].to_i %></b></td>
+                  <% else %>
+                    <td class="ps-design-c"><input class="ps-design" value="<%= design %>" placeholder="AR-"></td>
+                  <% end %>
+                  <% cols.each do |p| %>
+                    <td><input class="ps-cell no-spin" type="number" step="1" min="0" data-p="<%= p.id %>" value="<%= vals.dig(i.to_s, p.id.to_s) %>"></td>
+                  <% end %>
+                  <% if prepared %><td class="ps-filled num"><span class="ps-filled-val">0</span> / <%= targets[i].to_i %></td><% end %>
+                  <% unless prepared %><td class="no-print ps-rowact"><button type="button" class="ps-row-del" title="Remove row">✕</button></td><% end %>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot>
+              <tr class="ps-tot-row">
+                <td class="ps-design-c"><b>Total</b></td>
+                <% if prepared %><td class="ps-target-c"><b><%= targets.sum(&:to_i) %></b></td><% end %>
+                <% cols.each do |p| %><td class="ps-coltot" data-p="<%= p.id %>">0</td><% end %>
+                <% if prepared %><td></td><% end %>
+                <% unless prepared %><td class="no-print ps-rowact"></td><% end %>
+              </tr>
+              <tr class="ps-gtot-row">
+                <td class="ps-design-c"><b>G.Total</b></td>
+                <td class="num" id="psGTotal" colspan="<%= cols.size + (prepared ? 2 : 0) %>">0</td>
+                <% unless prepared %><td class="no-print ps-rowact"></td><% end %>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    <% end %>
+
+    <% if prepared %>
+      <div class="panel ps-records no-print">
+        <div class="panel-head">
+          <h2>⚠ Ruined Suits — Records</h2>
+          <span class="muted">Costing &amp; payment appear in <%= link_to "Khatta (Billing)", khatta_billing_path %> under the same contractor · design · laat.</span>
+        </div>
+        <% if @ruined_records.blank? %>
+          <p class="muted" style="padding:16px 18px">No ruined suits recorded for this sheet. Use <b>⚠ Claim ruined suits</b> above to add one.</p>
+        <% else %>
+          <div class="table-scroll">
+            <table class="utable" data-no-coltoggle>
+              <thead><tr><th>Laat</th><th>Design</th><th>Contractor</th><th class="num">Ruined Suits</th><% unless current_user.view_only? %><th style="text-align:right">Action</th><% end %></tr></thead>
+              <tbody>
+                <% @ruined_records.each do |r| %>
+                  <tr>
+                    <td><% if r[:laat] %><b>#<%= r[:laat] %></b><% else %>—<% end %></td>
+                    <td><b><%= r[:design] %></b></td>
+                    <td><%= r[:contractor].presence || "—" %></td>
+                    <td class="num"><span class="st-ruined"><%= r[:ruined] %></span></td>
+                    <% unless current_user.view_only? %>
+                      <td style="text-align:right">
+                        <div class="row-actions">
+                          <button type="button" class="btn-sm edit ps-rec-edit" data-emb="<%= r[:emb_id] %>" data-ruined="<%= r[:ruined] %>">Edit</button>
+                          <%= button_to "Delete", claim_production_sheet_path(@sheet, emb_id: r[:emb_id], ruined_suits: 0), method: :post,
+                                class: "btn-sm del", form: { style: "display:inline" }, data: { turbo_confirm: "Delete the claim of #{r[:ruined]} ruined suits for #{r[:design]} (#{r[:contractor]})?" } %>
+                        </div>
+                      </td>
+                    <% end %>
+                  </tr>
+                <% end %>
+                <tr class="tot">
+                  <td colspan="3" style="text-align:right"><b>Total ruined</b></td>
+                  <td class="num"><b><%= @ruined_records.sum { |r| r[:ruined] } %></b></td>
+                  <% unless current_user.view_only? %><td></td><% end %>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if prepared && !current_user.view_only? %>
+      <div id="psClaimModal" class="ke-modal" aria-hidden="true">
+        <div class="ke-modal-box" style="max-width:440px">
+          <button type="button" class="ke-modal-x" id="psClaimClose" aria-label="Close">✕</button>
+          <div class="ke-modal-title">⚠ Claim ruined suits</div>
+          <div class="ke-modal-msg">Ruined during stitching — charges the contractor's Khatta (they owe <b>Total − CM</b>/suit and lose the embroidery pay) and lowers this design's target. Pick the colour(s) ruined; remove all rows to clear.</div>
+          <%= form_with url: claim_production_sheet_path(@sheet), method: :post, local: true, id: "psClaimForm", html: { class: "claim-form" } do %>
+            <%= hidden_field_tag :emb_id, "", id: "psc_emb" %>
+            <div class="kb-form" data-claim-colors="<%= (@claim_colors_map || {}).to_json %>">
+              <label class="ke-fld"><span>Design · Contractor</span>
+                <select id="psc_design" data-no-ss="1">
+                  <% (@sheet.rows || []).uniq.each do |d| %>
+                    <% cm = (@claim_map || {})[d.to_s] %>
+                    <% if cm %>
+                      <option value="<%= cm[:emb_id] %>" data-ruined="<%= cm[:ruined] %>"><%= d %> · <%= cm[:contractor] %><%= " — #{cm[:ruined]} ruined" if cm[:ruined].to_i > 0 %></option>
+                    <% end %>
+                  <% end %>
+                </select>
+              </label>
+              <label class="ke-fld" style="margin-bottom:2px"><span>⚠ Ruined suits — by colour</span></label>
+              <div class="claim-rows" id="pscRows"></div>
+              <div class="claim-actions">
+                <button type="button" class="btn-sm claim-add" id="pscAdd">＋ colour</button>
+              </div>
+              <%= submit_tag "Save claim", class: "btn-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <% unless prepared %>
+      <template id="psRowTpl">
+        <tr class="ps-row">
+          <td class="ps-design-c"><input class="ps-design" value="AR-" placeholder="AR-"></td>
+          <% cols.each do |p| %>
+            <td><input class="ps-cell no-spin" type="number" step="1" min="0" data-p="<%= p.id %>"></td>
+          <% end %>
+          <td class="no-print ps-rowact"><button type="button" class="ps-row-del" title="Remove row">✕</button></td>
+        </tr>
+      </template>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var body = document.getElementById("psBody"), grid = document.getElementById("psGrid"), form = document.getElementById("psForm");
+    var panel = document.querySelector(".ps-panel"), prepared = panel.dataset.prepared === "true";
+    var tpl = document.getElementById("psRowTpl");
+    var removed = [];
+    var num = function (v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
+
+    function rowSum(tr) { var s = 0; tr.querySelectorAll(".ps-cell").forEach(function (c) { s += num(c.value); }); return s; }
+
+    function recompute() {
+      var colTot = {}, g = 0;
+      body.querySelectorAll(".ps-cell").forEach(function (inp) { var v = num(inp.value); colTot[inp.dataset.p] = (colTot[inp.dataset.p] || 0) + v; g += v; });
+      grid.querySelectorAll(".ps-coltot").forEach(function (td) { td.textContent = (colTot[td.dataset.p] || 0).toLocaleString(); });
+      document.getElementById("psGTotal").textContent = g.toLocaleString();
+    }
+
+    // Prepared mode: a row is editable only when every row ABOVE it is complete (total == target).
+    // Distributing MORE than the target is an error — flag the row and block Save until corrected.
+    function sequencePrepared() {
+      var prevOk = true, anyOver = false;
+      body.querySelectorAll("tr.ps-row").forEach(function (tr) {
+        var target = num(tr.dataset.target), sum = rowSum(tr);
+        var over = sum > target && target > 0;
+        if (over) anyOver = true;
+        var editable = prevOk;
+        tr.querySelectorAll(".ps-cell").forEach(function (c) {
+          c.disabled = !editable; c.classList.toggle("ps-locked", !editable); c.classList.toggle("ps-cell-over", over);
+        });
+        var fv = tr.querySelector(".ps-filled-val");
+        if (fv) fv.textContent = sum;
+        var fc = tr.querySelector(".ps-filled");
+        if (fc) { fc.classList.toggle("ps-done", sum === target && target > 0); fc.classList.toggle("ps-over", over); }
+        tr.classList.toggle("ps-row-error", over);
+        // next row unlocks only when this row is EXACTLY complete (and not over)
+        prevOk = prevOk && (target > 0 ? sum === target : true);
+      });
+      var err = document.getElementById("psError"), save = document.getElementById("psSave");
+      if (err) err.classList.toggle("hidden", !anyOver);
+      if (save) { save.disabled = anyOver; save.classList.toggle("is-disabled", anyOver); }
+    }
+    // Generic mode: left-to-right, cell by cell.
+    function sequenceGeneric() {
+      var blocked = false;
+      body.querySelectorAll(".ps-cell").forEach(function (c) {
+        if (blocked) { c.disabled = true; c.classList.add("ps-locked"); }
+        else { c.disabled = false; c.classList.remove("ps-locked"); if (c.value.trim() === "") blocked = true; }
+      });
+    }
+    var sequence = prepared ? sequencePrepared : sequenceGeneric;
+
+    grid.addEventListener("input", function () { recompute(); sequence(); });
+    if (!prepared) {
+      body.addEventListener("click", function (e) {
+        if (e.target.classList.contains("ps-row-del")) { e.target.closest("tr").remove(); recompute(); sequence(); }
+      });
+      document.getElementById("psAddRow").addEventListener("click", function () {
+        body.insertAdjacentHTML("beforeend", tpl.innerHTML); recompute(); sequence();
+        var last = body.lastElementChild; var d = last && last.querySelector(".ps-design"); if (d) d.focus();
+      });
+    }
+    // Re-add dropdown (persons removed from this sheet)
+    var readd = [];
+    var readdWrap = document.getElementById("psReadd"), readdSel = document.getElementById("psReaddSel");
+    function refreshReaddVisibility() {
+      if (readdWrap) readdWrap.style.display = (readdSel && readdSel.options.length > 0) ? "inline-flex" : "none";
+    }
+
+    grid.addEventListener("click", function (e) {
+      if (!e.target.classList.contains("ps-col-del")) return;
+      var pid = e.target.dataset.p;
+      var th = e.target.closest("th");
+      var nm = th ? ((th.querySelector(".ps-col-name") || {}).textContent || "").trim() : "";
+      grid.querySelectorAll('[data-p="' + pid + '"]').forEach(function (el) { var td = el.closest("td, th"); if (td) td.remove(); });
+      if (removed.indexOf(pid) < 0) removed.push(pid);
+      // offer this person in the re-add dropdown
+      if (readdSel && !readdSel.querySelector('option[value="' + pid + '"]')) {
+        var o = document.createElement("option"); o.value = pid; o.textContent = nm || ("#" + pid); readdSel.appendChild(o);
+        refreshReaddVisibility();
+      }
+      recompute(); sequence();
+    });
+    var readdBtn = document.getElementById("psReaddBtn");
+    if (readdBtn) readdBtn.addEventListener("click", function () {
+      if (!readdSel || !readdSel.value) return;
+      readd.push(readdSel.value);
+      buildJson(); form.requestSubmit ? form.requestSubmit() : form.submit();
+    });
+    document.getElementById("psAddCol").addEventListener("click", function () {
+      var name = prompt("New production party (adds a column + creates their card):", "");
+      if (name === null || !name.trim()) return;
+      document.getElementById("ps_new_party").value = name.trim();
+      buildJson(); form.requestSubmit ? form.requestSubmit() : form.submit();
+    });
+    document.getElementById("psPrint").addEventListener("click", function () { window.print(); });
+
+    function buildJson() {
+      var rows = [], values = {};
+      body.querySelectorAll("tr.ps-row").forEach(function (tr, i) {
+        var design = prepared ? (tr.querySelector(".ps-design-fixed") || {}).dataset.design : (tr.querySelector(".ps-design") || {}).value;
+        rows.push(design || "");
+        var cv = {};
+        tr.querySelectorAll(".ps-cell").forEach(function (inp) { var v = inp.value.trim(); if (v !== "") cv[inp.dataset.p] = v; });
+        values[i] = cv;
+      });
+      var existing = []; try { existing = JSON.parse(panel.dataset.existingHidden || "[]"); } catch (e) {}
+      var hid = existing.map(String); removed.forEach(function (id) { if (hid.indexOf(String(id)) < 0) hid.push(String(id)); });
+      readd.forEach(function (id) { var k = hid.indexOf(String(id)); if (k >= 0) hid.splice(k, 1); });   // re-added persons are no longer hidden
+      document.getElementById("ps_rows").value = JSON.stringify(rows);
+      document.getElementById("ps_values").value = JSON.stringify(values);
+      document.getElementById("ps_hidden").value = JSON.stringify(hid);
+    }
+    form.addEventListener("submit", buildJson);
+
+    // Claim modal: pick a design → build a colour+suits grid for its ruined suits
+    var cModal = document.getElementById("psClaimModal");
+    if (cModal) {
+      var pscDesign = document.getElementById("psc_design"), pscEmb = document.getElementById("psc_emb"),
+          pscRows = document.getElementById("pscRows"), kbForm = cModal.querySelector("[data-claim-colors]");
+      var CLAIM_COLORS = {};
+      try { CLAIM_COLORS = JSON.parse(kbForm ? kbForm.dataset.claimColors : "{}") || {}; } catch (e) {}
+      var esc = function (s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (ch) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]; }); };
+      function colorOptions(cols, sel) {
+        var h = '<option value="">Colour…</option>';
+        (cols || []).forEach(function (c) { h += '<option value="' + c.id + '"' + (String(c.id) === String(sel) ? " selected" : "") + '>' + esc(c.name || "—") + " (" + c.net + " left)</option>"; });
+        return h;
+      }
+      function makeRow(cols, colorId, suits) {
+        var row = document.createElement("div"); row.className = "claim-row";
+        row.innerHTML = '<select name="claim_colors[][color_id]" class="claim-color" data-no-ss="1" required>' + colorOptions(cols, colorId) + '</select>' +
+          '<input type="number" name="claim_colors[][suits]" min="1" step="1" class="claim-suits no-spin" value="' + (suits || "") + '" placeholder="suits" required>' +
+          '<button type="button" class="claim-row-del" title="Remove colour">✕</button>';
+        return row;
+      }
+      function buildRows(embId) {
+        pscRows.innerHTML = "";
+        var entry = CLAIM_COLORS[String(embId)] || { colours: [], lines: [] };
+        var lines = (entry.lines && entry.lines.length) ? entry.lines : [{ color_id: "", suits: "" }];
+        lines.forEach(function (ln) { pscRows.appendChild(makeRow(entry.colours, ln.color_id, ln.suits)); });
+      }
+      function pscSync() { if (!pscDesign) return; pscEmb.value = pscDesign.value; buildRows(pscDesign.value); }
+      var cClose = function () { cModal.classList.remove("open"); };
+      document.getElementById("psClaimOpen").addEventListener("click", function () { pscSync(); cModal.classList.add("open"); });
+      document.getElementById("psClaimClose").addEventListener("click", cClose);
+      cModal.addEventListener("click", function (e) { if (e.target === cModal) cClose(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") cClose(); });
+      if (pscDesign) pscDesign.addEventListener("change", pscSync);
+      var addBtn = document.getElementById("pscAdd");
+      if (addBtn) addBtn.addEventListener("click", function () {
+        var entry = CLAIM_COLORS[String(pscEmb.value)] || { colours: [] };
+        pscRows.appendChild(makeRow(entry.colours, "", ""));
+      });
+      pscRows.addEventListener("click", function (e) { var del = e.target.closest(".claim-row-del"); if (del) del.closest(".claim-row").remove(); });
+
+      // Records "Edit" → open the modal pre-selected to that record's design
+      document.querySelectorAll(".ps-rec-edit").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (pscDesign) { for (var i = 0; i < pscDesign.options.length; i++) { if (pscDesign.options[i].value === b.dataset.emb) { pscDesign.selectedIndex = i; break; } } }
+          pscEmb.value = b.dataset.emb; buildRows(b.dataset.emb); cModal.classList.add("open");
+        });
+      });
+    }
+
+    recompute(); sequence();
+  })();
+</script>

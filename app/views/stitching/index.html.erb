@@ -1,0 +1,122 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>🪡 Stitching</h1><p class="page-sub">Laats sent to the Supervisor, grouped by the day stitching is directed to start — earliest first. Send from <%= link_to "In Stock", stock_entries_path %>.</p></div>
+    </div>
+    <% if @jobs.empty? %>
+      <div class="panel"><p class="muted" style="padding:24px;text-align:center">Nothing sent for stitching yet — in <%= link_to "In Stock", stock_entries_path %>, a completed laat's <b>Send for Stitching</b> button becomes active.</p></div>
+    <% end %>
+    <% @by_date.each_with_index do |(start_on, jobs), di| %>
+      <% net_total = jobs.sum { |j| j.suits.to_i - (j.khatta_emb&.stitch_claim_suits.to_i) } %>
+      <% bk = @backup_by_date[start_on] %>
+      <div class="panel ke-laat">
+        <div class="ke-laat-head">
+          <div class="ke-laat-title">
+            <span class="ke-laat-badge">📅 <%= start_on&.strftime("%d %b %Y") || "No date" %></span>
+            <span class="ke-laat-meta">start stitching · <%= jobs.size %> laat batch(es) · <%= net_total %> suits</span>
+          </div>
+          <div class="ke-laat-actions">
+            <% if bk && bk[:sections].any? %>
+              <button type="button" class="btn-sm btn-soft see-backup-btn" data-target="bkModal<%= di %>">🧵 See backup</button>
+            <% end %>
+            <% if start_on && !current_user.view_only? %>
+              <%= button_to "📄 Prepare sheet", stitching_prepare_sheet_path(date: start_on), method: :post,
+                    class: "btn-sm btn-primary", form: { style: "display:inline" } %>
+            <% end %>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Sent</th><th>Supervisor</th><th>Laat</th><th>Design</th><th class="num">Suits</th><th class="num">Ruined</th><th class="num">Net Suits</th></tr></thead>
+            <tbody>
+              <% jobs.sort_by { |j| [-(j.sent_on&.to_time&.to_i || 0), -j.id] }.each do |j| %>
+                <% ruined = j.khatta_emb&.stitch_claim_suits.to_i %>
+                <% net = j.suits.to_i - ruined %>
+                <tr>
+                  <td><%= j.sent_on&.strftime("%d %b %Y") %></td>
+                  <td><b>🧑‍💼 <%= j.supervisor.presence || "Supervisor" %></b></td>
+                  <td><% if j.laat %><b>#<%= j.laat %></b><% else %>—<% end %></td>
+                  <td><%= j.design.presence || "—" %></td>
+                  <td class="num"><%= j.suits %></td>
+                  <td class="num"><%= ruined.positive? ? content_tag(:span, "− #{ruined}", class: "st-ruined") : "—" %></td>
+                  <td class="num"><b><%= net %></b></td>
+                </tr>
+              <% end %>
+              <tr class="tot">
+                <td colspan="4" style="text-align:right"><b>Total</b></td>
+                <td class="num"><b><%= jobs.sum { |j| j.suits.to_i } %></b></td>
+                <td class="num"><b>− <%= jobs.sum { |j| j.khatta_emb&.stitch_claim_suits.to_i } %></b></td>
+                <td class="num"><b><%= net_total %></b></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <% if bk && bk[:sections].any? %>
+        <div id="bkModal<%= di %>" class="ke-modal bk-modal" aria-hidden="true">
+          <div class="ke-modal-box bk-box">
+            <button type="button" class="ke-modal-x bk-screen-only" aria-label="Close">✕</button>
+            <div class="bk-head">
+              <div class="ke-modal-title">🧵 Back Up cloth — <%= start_on&.strftime("%d %b %Y") %></div>
+              <button type="button" class="btn-sm btn-soft bk-print-btn bk-screen-only" onclick="window.print()">🖨 Print</button>
+            </div>
+            <div class="ke-modal-msg bk-screen-only">Back Up meters &amp; suits per colour, pulled from each laat's fabric lot. Prints on A5 (half A4), landscape.</div>
+            <div class="bk-body">
+              <% bk[:sections].each do |s| %>
+                <div class="bk-sec">
+                  <div class="bk-sec-head">
+                    <span class="bk-sec-id"><b>Laat <% if s[:laat].present? %>#<%= s[:laat] %><% else %>—<% end %></b> · Design <%= s[:design].presence || "—" %></span>
+                    <% if s[:contractor].present? %><span class="bk-sec-party"><%= s[:contractor] %></span><% end %>
+                    <span class="bk-sec-sub">Subtotal <b><%= number_with_precision(s[:subtotal], precision: 2, strip_insignificant_zeros: true) %> m</b></span>
+                  </div>
+                  <div class="table-scroll">
+                    <table class="bk-htbl">
+                      <thead>
+                        <tr>
+                          <th class="bk-htbl-lbl"></th>
+                          <% s[:colours].each do |c| %>
+                            <th><span class="bk-sw" style="background:<%= c[:hex] %>"></span><%= c[:name].presence || "—" %></th>
+                          <% end %>
+                          <th class="bk-htbl-tot">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="bk-r-suits">
+                          <th class="bk-htbl-lbl">Suits</th>
+                          <% s[:colours].each do |c| %><td><%= c[:suits] %></td><% end %>
+                          <td class="bk-htbl-tot">—</td>
+                        </tr>
+                        <tr class="bk-r-backup">
+                          <th class="bk-htbl-lbl">Back&nbsp;Up</th>
+                          <% s[:colours].each do |c| %><td><%= number_with_precision(c[:backup], precision: 2, strip_insignificant_zeros: true) %> m</td><% end %>
+                          <td class="bk-htbl-tot"><b><%= number_with_precision(s[:subtotal], precision: 2, strip_insignificant_zeros: true) %> m</b></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              <% end %>
+              <div class="bk-total"><span>TOTAL BACK UP</span><b><%= number_with_precision(bk[:total], precision: 2, strip_insignificant_zeros: true) %> m</b></div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  (function () {
+    function close(m) { m.classList.remove("open"); }
+    document.querySelectorAll(".see-backup-btn").forEach(function (b) {
+      b.addEventListener("click", function () { var m = document.getElementById(b.dataset.target); if (m) m.classList.add("open"); });
+    });
+    document.querySelectorAll(".bk-modal").forEach(function (m) {
+      var x = m.querySelector(".ke-modal-x"); if (x) x.addEventListener("click", function () { close(m); });
+      m.addEventListener("click", function (e) { if (e.target === m) close(m); });
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".bk-modal.open").forEach(close); });
+  })();
+</script>

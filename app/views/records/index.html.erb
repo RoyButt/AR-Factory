@@ -1,0 +1,195 @@
+<% d = ->(x) { x ? x.strftime("%d %b %Y") : "—" } %>
+<% yn = ->(b) { b ? "<span class='yes'>Paid</span>".html_safe : "<span class='no'>—</span>".html_safe } %>
+<% n = ->(x) { x.presence || "—" } %>
+
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <h1>Tracking</h1>
+    </div>
+
+    <div class="panel">
+      <div class="filter-panel-head">
+        <h2>All Production Lots</h2>
+        <div class="filter-head-actions">
+          <span class="muted"><%= @lots.size %> record<%= "s" unless @lots.size == 1 %></span>
+          <% q = request.query_parameters %>
+          <%= link_to "⤓ Excel", records_export_path(q.merge(format: :xlsx)), class: "btn-export xls" %>
+          <%= link_to "⤓ PDF",   records_export_path(q.merge(format: :pdf)),  class: "btn-export pdf" %>
+          <%= link_to "⤓ CSV",   records_export_path(q.merge(format: :csv)),  class: "btn-export csv" %>
+          <button type="button" class="btn-export print" onclick="window.print()">🖨 Print</button>
+        </div>
+      </div>
+
+      <%= form_with url: records_path, method: :get, local: true, id: "filterForm", class: "filter-builder" do %>
+        <div class="filter-builder-top">
+          <span class="filter-builder-label">Filters</span>
+          <button type="button" id="addFilter" class="btn-soft">+ Add filter</button>
+        </div>
+        <input type="hidden" name="join" id="joinInput" value="<%= @join %>">
+        <div id="filterRows"></div>
+        <div class="filter-builder-actions">
+          <%= submit_tag "Apply filters", class: "btn-apply" %>
+          <%= link_to "Reset", records_path, class: "btn-soft" %>
+        </div>
+      <% end %>
+
+      <div class="table-scroll">
+        <table class="utable rec-table">
+          <thead>
+            <tr>
+              <th>Design</th><th>Laat #</th><th>EMB Name</th><th class="num">Suits</th>
+              <th>EMB Sent</th><th class="num">Sent</th><th>EMB In</th><th class="num">Recv</th><th>EMB Paid</th>
+              <th>Production</th>
+              <th>CutWork Sent</th><th class="num">Sent</th><th class="num">Recv</th><th>CW Paid</th>
+              <th>OverLock Sent</th><th class="num">Sent</th><th class="num">Recv</th><th>OL Paid</th>
+              <th class="num">HM Sent</th><th class="num">HM Recv</th><th>HM Return</th><th>HM Paid</th>
+              <th>Press</th><th>Out</th><th class="num">Progress</th>
+              <th class="attach-col">Attachment</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @lots.each do |l| %>
+              <tr>
+                <td><b><%= l.design %></b></td>
+                <td><%= n.(l.laat_number) %></td>
+                <td><%= n.(l.emb_name) %></td>
+                <td class="num"><%= n.(l.total_suit) %></td>
+                <td><%= d.(l.emb_sent_date) %></td>
+                <td class="num"><%= n.(l.emb_sent_qty) %></td>
+                <td><%= d.(l.emb_received_date) %></td>
+                <td class="num"><%= n.(l.emb_received_qty) %></td>
+                <td><%= yn.(l.emb_paid) %></td>
+                <td><%= d.(l.production_date) %></td>
+                <td><%= d.(l.cutwork_sent_date) %></td>
+                <td class="num"><%= n.(l.cutwork_sent_qty) %></td>
+                <td class="num <%= 'short' if l.cutwork_sent_qty && l.cutwork_received_qty && l.cutwork_received_qty < l.cutwork_sent_qty %>"><%= n.(l.cutwork_received_qty) %></td>
+                <td><%= yn.(l.cutwork_paid) %></td>
+                <td><%= d.(l.overlock_sent_date) %></td>
+                <td class="num"><%= n.(l.overlock_sent_qty) %></td>
+                <td class="num <%= 'short' if l.overlock_sent_qty && l.overlock_received_qty && l.overlock_received_qty < l.overlock_sent_qty %>"><%= n.(l.overlock_received_qty) %></td>
+                <td><%= yn.(l.overlock_paid) %></td>
+                <td class="num"><%= n.(l.handmade_sent_qty) %></td>
+                <td class="num <%= 'short' if l.handmade_sent_qty && l.handmade_received_qty && l.handmade_received_qty < l.handmade_sent_qty %>"><%= n.(l.handmade_received_qty) %></td>
+                <td><%= d.(l.handmade_return_date) %></td>
+                <td><%= yn.(l.handmade_paid) %></td>
+                <td><%= d.(l.press_date) %></td>
+                <td><%= d.(l.out_date) %></td>
+                <td class="num"><%= l.progress_pct %>%</td>
+                <td class="attach-col">
+                  <% atts = l.lot_attachments.select { |a| a.file.attached? } %>
+                  <% if atts.any? %>
+                    <div class="thumb-row">
+                      <% atts.first(4).each do |a| %>
+                        <% if a.file.content_type.to_s.start_with?("image/") %>
+                          <%= link_to rails_blob_path(a.file), target: "_blank", title: a.stage do %>
+                            <%= image_tag rails_blob_path(a.file), class: "thumb", alt: a.stage %>
+                          <% end %>
+                        <% else %>
+                          <%= link_to "📎", rails_blob_path(a.file, disposition: "attachment"),
+                                target: "_blank", class: "thumb-file", title: a.file.filename.to_s %>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <span class="no">—</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+            <% if @lots.empty? %>
+              <tr><td colspan="26" class="muted" style="text-align:center;padding:24px">No records match these filters.</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const CONFIG = <%= raw @filter_config.to_json %>;
+    const EXISTING = <%= raw @conditions.to_json %>;
+    let JOIN = <%= raw @join.to_json %>;
+    const colById = (id) => CONFIG.columns.find((c) => c.id === id) || CONFIG.columns[0];
+    const opsFor = (variant) => CONFIG.operators[variant] || CONFIG.operators["text"];
+    const opMeta = (variant, op) => opsFor(variant).find((o) => o.value === op);
+
+    let idx = 0;
+    const rowsEl = document.getElementById("filterRows");
+    const joinInput = document.getElementById("joinInput");
+
+    function valueControl(i, col, op, value, value2) {
+      const kind = (opMeta(col.variant, op) || {}).value_kind || "one";
+      if (kind === "none") return '<span class="fv-empty">—</span>';
+      const name = `f[${i}][value]`;
+      if (col.variant === "boolean") {
+        return `<select name="${name}" class="fv">
+          <option value="true" ${value === "true" ? "selected" : ""}>True</option>
+          <option value="false" ${value === "false" ? "selected" : ""}>False</option></select>`;
+      }
+      if (col.variant === "date") {
+        let h = `<input type="date" name="${name}" class="fv" value="${value || ""}">`;
+        if (kind === "two") h += `<span class="fv-and">and</span><input type="date" name="f[${i}][value2]" class="fv" value="${value2 || ""}">`;
+        return h;
+      }
+      if (col.variant === "number") {
+        let h = `<input type="number" name="${name}" class="fv" value="${value || ""}">`;
+        if (kind === "two") h += `<span class="fv-and">and</span><input type="number" name="f[${i}][value2]" class="fv" value="${value2 || ""}">`;
+        return h;
+      }
+      return `<input type="text" name="${name}" class="fv" placeholder="value" value="${(value || "").replace(/"/g, "&quot;")}">`;
+    }
+
+    function buildRow(cond) {
+      const i = idx++;
+      const col = colById(cond.field || CONFIG.columns[0].id);
+      const op = cond.operator || opsFor(col.variant)[0].value;
+      const row = document.createElement("div");
+      row.className = "filter-row-b";
+      const fieldOpts = CONFIG.columns.map((c) => `<option value="${c.id}" ${c.id === col.id ? "selected" : ""}>${c.label}</option>`).join("");
+      const opOpts = opsFor(col.variant).map((o) => `<option value="${o.value}" ${o.value === op ? "selected" : ""}>${o.label}</option>`).join("");
+      row.innerHTML = `
+        <span class="fb-join"></span>
+        <select class="fb-field" name="f[${i}][field]">${fieldOpts}</select>
+        <select class="fb-op" name="f[${i}][operator]">${opOpts}</select>
+        <span class="fb-val">${valueControl(i, col, op, cond.value, cond.value2)}</span>
+        <button type="button" class="fb-remove" title="Remove">×</button>`;
+      rowsEl.appendChild(row);
+
+      const fieldSel = row.querySelector(".fb-field");
+      const opSel = row.querySelector(".fb-op");
+      const valWrap = row.querySelector(".fb-val");
+      fieldSel.addEventListener("change", () => {
+        const c = colById(fieldSel.value);
+        opSel.innerHTML = opsFor(c.variant).map((o) => `<option value="${o.value}">${o.label}</option>`).join("");
+        valWrap.innerHTML = valueControl(i, c, opSel.value, "", "");
+      });
+      opSel.addEventListener("change", () => {
+        valWrap.innerHTML = valueControl(i, colById(fieldSel.value), opSel.value, "", "");
+      });
+      row.querySelector(".fb-remove").addEventListener("click", () => { row.remove(); renderJoinCells(); });
+      renderJoinCells();
+    }
+
+    function renderJoinCells() {
+      [...rowsEl.querySelectorAll(".filter-row-b")].forEach((row, k) => {
+        const cell = row.querySelector(".fb-join");
+        if (k === 0) cell.innerHTML = '<span class="join-word">Where</span>';
+        else if (k === 1) {
+          cell.innerHTML = `<select class="join-select">
+            <option value="and" ${JOIN === "and" ? "selected" : ""}>and</option>
+            <option value="or" ${JOIN === "or" ? "selected" : ""}>or</option></select>`;
+          cell.querySelector(".join-select").addEventListener("change", (e) => { JOIN = e.target.value; joinInput.value = JOIN; renderJoinCells(); });
+        } else cell.innerHTML = `<span class="join-word">${JOIN}</span>`;
+      });
+    }
+
+    document.getElementById("addFilter").addEventListener("click", () => buildRow({}));
+    if (EXISTING && EXISTING.length) EXISTING.forEach((c) => buildRow(c)); else buildRow({});
+    renderJoinCells();
+  })();
+</script>

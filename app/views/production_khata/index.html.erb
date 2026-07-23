@@ -1,0 +1,151 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>📖 Detail Ledger</h1><p class="page-sub">What we owe each production party — stitching earned (suits × Shirt Stitch rate) minus payments made.</p></div>
+    </div>
+
+    <div class="ke-stats" style="grid-template-columns:repeat(4,1fr)">
+      <div class="ke-stat"><span>Members</span><b id="stMembers"><%= @ledgers.size %></b></div>
+      <div class="ke-stat ke-stat-bill"><span>Total Earned</span><b id="stEarned"><%= rs(@tot_earned) %></b></div>
+      <div class="ke-stat ke-stat-ok"><span>Total Paid</span><b id="stPaid">− <%= rs(@tot_paid) %></b></div>
+      <div class="ke-stat ke-stat-warn"><span>Balance to Pay</span><b id="stBalance"><%= rs(@tot_balance) %></b></div>
+    </div>
+
+    <% unless @ledgers.empty? %>
+      <div class="panel" style="padding:0">
+        <div class="lot-filter">
+          <div class="md-search-bar">
+            <span class="md-search-ic">⌕</span>
+            <input type="text" id="pkSearch" class="md-search" placeholder="Search party…">
+          </div>
+          <label class="lot-filter-field"><span>Party</span>
+            <select id="pkParty"><option value="">All</option><% @parties.each do |n| %><option value="<%= n %>"><%= n %></option><% end %></select>
+          </label>
+          <label class="lot-filter-field"><span>Status</span>
+            <select id="pkStatus"><option value="">All</option><option value="owe">To Pay</option><option value="adv">Advance</option><option value="settled">Settled</option></select>
+          </label>
+          <span class="md-search-count" id="pkCount"></span>
+        </div>
+      </div>
+    <% end %>
+
+    <% if @ledgers.empty? %>
+      <div class="panel"><p class="muted" style="padding:24px;text-align:center">No production earnings yet — distribute suits on a <%= link_to "Production Sheet", production_sheets_path %> and Save.</p></div>
+    <% end %>
+
+    <% @ledgers.each do |l| %>
+      <% bal = l[:balance] %>
+      <div class="panel ke-laat pk-ledger" data-name="<%= l[:party].name.downcase %>" data-party="<%= l[:party].name %>" data-status="<%= bal > 0 ? 'owe' : (bal < 0 ? 'adv' : 'settled') %>" data-earned="<%= l[:earned] %>" data-paid="<%= l[:paid] %>" data-balance="<%= l[:balance] %>">
+        <div class="ke-laat-head">
+          <div class="ke-laat-title">
+            <span class="ke-laat-badge">🧷 <%= l[:party].name %></span>
+          </div>
+          <div class="ke-laat-tot">
+            <span>Earned <b><%= rs(l[:earned]) %></b></span>
+            <span class="ok">Paid <b>− <%= rs(l[:paid]) %></b></span>
+            <span class="kb-bal <%= bal > 0 ? 'owe' : (bal < 0 ? 'adv' : 'settled') %>"><%= bal > 0 ? "To Pay" : (bal < 0 ? "Advance" : "Settled") %> <b><%= rs(bal.abs) %></b></span>
+            <% unless current_user.view_only? %>
+              <button type="button" class="btn-sm edit pk-add" data-id="<%= l[:party].id %>" data-name="<%= l[:party].name %>">＋ Payment</button>
+            <% end %>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Date</th><th>Details</th><th class="num">Earned</th><th class="num">Paid</th><th class="num">Balance</th><th></th></tr></thead>
+            <tbody>
+              <% l[:entries].each do |e| %>
+                <tr class="kb-<%= e[:kind] %>">
+                  <td><%= e[:date]&.strftime("%d %b %Y") || "—" %></td>
+                  <td><%= e[:detail] %></td>
+                  <td class="num"><%= e[:earn].positive? ? rs(e[:earn]) : "" %></td>
+                  <td class="num kb-credit"><%= e[:paid].positive? ? "− " + rs(e[:paid]) : "" %></td>
+                  <td class="num"><b><%= rs(e[:balance]) %></b></td>
+                  <td class="num">
+                    <% if e[:kind] == "payment" %>
+                      <span class="kb-actions">
+                        <% if e[:payment]&.proof&.attached? %>
+                          <%= link_to "📎", rails_blob_path(e[:payment].proof, disposition: "inline"), target: "_blank", class: "kb-proof", title: "View payment proof" %>
+                        <% end %>
+                        <% unless current_user.view_only? %>
+                          <%= button_to "✕", remove_production_payment_path(id: e[:id]), method: :delete, class: "kb-del",
+                                form: { style: "display:inline" }, data: { turbo_confirm: "Remove this payment of #{rs(e[:paid])}?" } %>
+                        <% end %>
+                      </span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+              <tr class="tot">
+                <td></td><td><b>Total</b></td>
+                <td class="num"><b><%= rs(l[:earned]) %></b></td>
+                <td class="num"><b>− <%= rs(l[:paid]) %></b></td>
+                <td class="num"><b><%= rs(l[:balance]) %></b></td><td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="pkModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:440px">
+      <button type="button" class="ke-modal-x" id="pkClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title" id="pkTitle">Record payment</div>
+      <%= form_with url: add_production_payment_path, method: :post, local: true, html: { id: "pkForm", multipart: true } do %>
+        <%= hidden_field_tag :production_party_id, "", id: "pk_id" %>
+        <div class="kb-form">
+          <label class="ke-fld"><span>Amount (Rs)</span><%= number_field_tag :amount, nil, min: 1, step: 0.01, class: "no-spin", required: true, placeholder: "e.g. 5000" %></label>
+          <label class="ke-fld"><span>Date</span><%= date_field_tag :paid_on, Date.current %></label>
+          <label class="ke-fld"><span>Method</span><%= text_field_tag :method_detail, "cash", placeholder: "cash / online", data: { no_ss: "1" } %></label>
+          <label class="ke-fld"><span>Notes</span><%= text_field_tag :notes, nil, placeholder: "optional", data: { no_ss: "1" } %></label>
+          <label class="ke-fld"><span>Payment proof <span class="muted" style="font-weight:400;text-transform:none">(image or PDF, optional)</span></span>
+            <%= file_field_tag :proof, accept: "image/*,application/pdf" %></label>
+          <%= submit_tag "Add payment", class: "btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var m = document.getElementById("pkModal");
+      var close = function () { m.classList.remove("open"); };
+      document.querySelectorAll(".pk-add").forEach(function (b) {
+        b.addEventListener("click", function () {
+          document.getElementById("pk_id").value = b.dataset.id;
+          document.getElementById("pkTitle").textContent = "Record payment — " + b.dataset.name;
+          m.classList.add("open");
+          var a = m.querySelector('input[name="amount"]'); if (a) { a.value = ""; a.focus(); }
+        });
+      });
+      document.getElementById("pkClose").addEventListener("click", close);
+      m.addEventListener("click", function (e) { if (e.target === m) close(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+
+      // filters — search / party / status; summary recomputes from visible members
+      var q = document.getElementById("pkSearch"), pp = document.getElementById("pkParty"),
+          st = document.getElementById("pkStatus"), count = document.getElementById("pkCount");
+      if (q) {
+        var panels = Array.prototype.slice.call(document.querySelectorAll(".pk-ledger"));
+        var money = function (n) { return "Rs " + Math.round(n).toLocaleString(); };
+        var setStat = function (id, t) { var el = document.getElementById(id); if (el) el.textContent = t; };
+        var apply = function () {
+          var term = q.value.trim().toLowerCase(), party = pp.value, status = st.value, n = 0, e = 0, p = 0, b = 0;
+          panels.forEach(function (pl) {
+            var ok = (!term || (pl.dataset.name || "").indexOf(term) >= 0) &&
+                     (!party || pl.dataset.party === party) && (!status || pl.dataset.status === status);
+            pl.style.display = ok ? "" : "none";
+            if (ok) { n++; e += +pl.dataset.earned || 0; p += +pl.dataset.paid || 0; b += +pl.dataset.balance || 0; }
+          });
+          setStat("stMembers", n); setStat("stEarned", money(e)); setStat("stPaid", "− " + money(p)); setStat("stBalance", money(b));
+          if (count) count.textContent = (term || party || status) ? (n + " of " + panels.length) : "";
+        };
+        [q, pp, st].forEach(function (el) { el.addEventListener("input", apply); el.addEventListener("change", apply); });
+        apply();
+      }
+    })();
+  </script>
+<% end %>

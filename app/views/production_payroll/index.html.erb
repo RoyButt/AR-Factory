@@ -1,0 +1,138 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div><h1>🗓 Weekly Pay</h1><p class="page-sub">Pay your stitching workers week by week. One row per worker — earned this week, paid, and what's still outstanding.</p></div>
+      <%= link_to "Full ledgers →", production_khata_path, class: "btn-soft" %>
+    </div>
+
+    <!-- Week navigator -->
+    <div class="panel pw-navpanel">
+      <div class="pw-nav">
+        <%= link_to "◀", production_payroll_path(week: @prev_week), class: "pw-navbtn", title: "Previous week" %>
+        <div class="pw-week">
+          <span class="pw-weeklabel"><%= @week_start.strftime("%d %b") %> – <%= @week_end.strftime("%d %b %Y") %></span>
+          <span class="pw-weeksub"><%= @is_current ? "This week" : "Week of #{@week_start.strftime('%A')}" %></span>
+        </div>
+        <%= link_to "▶", production_payroll_path(week: @next_week), class: "pw-navbtn", title: "Next week" %>
+        <% unless @is_current %><%= link_to "Jump to this week", production_payroll_path, class: "btn-sm edit", style: "margin-left:10px" %><% end %>
+        <span style="flex:1"></span>
+        <% if @weeks.size > 1 %>
+          <select class="pw-weekpick" onchange="if(this.value)window.location='<%= production_payroll_path %>?week='+this.value">
+            <option value="">Jump to week…</option>
+            <% @weeks.each do |w| %><option value="<%= w %>" <%= "selected" if w == @week_start %>><%= w.strftime("%d %b") %> – <%= (w+6).strftime("%d %b %Y") %></option><% end %>
+          </select>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Week summary -->
+    <div class="ke-stats" style="grid-template-columns:repeat(4,1fr)">
+      <div class="ke-stat ke-stat-bill"><span>Earned this week</span><b><%= rs(@tot_earned) %></b></div>
+      <div class="ke-stat ke-stat-ok"><span>Paid this week</span><b>− <%= rs(@tot_paid) %></b></div>
+      <div class="ke-stat ke-stat-warn"><span>Unpaid workers</span><b><%= @unpaid_count %></b></div>
+      <div class="ke-stat ke-stat-claim"><span>Total Outstanding</span><b><%= rs(@tot_outstanding) %></b></div>
+    </div>
+
+    <div class="panel pw-tablepanel">
+      <div class="pw-tablehead">
+        <div class="md-search-bar pw-search"><span class="md-search-ic">⌕</span><input type="text" id="pwSearch" class="md-search" placeholder="Search worker…"></div>
+        <span class="md-search-count" id="pwCount"></span>
+      </div>
+      <div class="table-scroll">
+        <table class="utable pw-table" data-no-coltoggle>
+          <thead><tr><th>Worker</th><th class="num">Suits (wk)</th><th class="num">Earned (wk)</th><th class="num">Paid (wk)</th><th class="num">Week Balance</th><th class="num">Total Outstanding</th><th style="text-align:right" data-lock>Pay</th></tr></thead>
+          <tbody>
+            <% @rows.each do |r| %>
+              <tr class="pw-row" data-name="<%= r[:party].name.downcase %>">
+                <td><b>🧷 <%= r[:party].name %></b></td>
+                <td class="num"><%= r[:suits].positive? ? r[:suits] : "—" %></td>
+                <td class="num"><%= r[:wk_earned].positive? ? rs(r[:wk_earned]) : "—" %></td>
+                <td class="num kb-credit"><%= r[:wk_paid].positive? ? "− " + rs(r[:wk_paid]) : "—" %></td>
+                <td class="num"><b><%= rs(r[:wk_balance]) %></b></td>
+                <td class="num"><b class="<%= r[:outstanding] > 0 ? 'pw-owe' : (r[:outstanding] < 0 ? 'pw-adv' : '') %>"><%= rs(r[:outstanding]) %></b></td>
+                <td style="text-align:right">
+                  <% unless current_user.view_only? %>
+                    <% if r[:outstanding] > 0 %>
+                      <button type="button" class="btn-sm btn-primary pw-pay" data-id="<%= r[:party].id %>" data-name="<%= r[:party].name %>"
+                              data-week="<%= r[:wk_balance] > 0 ? r[:wk_balance].round : r[:outstanding].round %>" data-out="<%= r[:outstanding].round %>">💵 Pay</button>
+                    <% else %><span class="done-badge">✓ settled</span><% end %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+            <tr id="pwNoMatch" class="hidden"><td colspan="7" class="muted" style="text-align:center;padding:22px">No workers match.</td></tr>
+            <% if @rows.empty? %><tr><td colspan="7" class="muted" style="text-align:center;padding:24px">No activity this week. Use ◀ ▶ to view another week.</td></tr><% end %>
+          </tbody>
+          <% unless @rows.empty? %>
+            <tfoot><tr class="tot">
+              <td style="text-align:right"><b>Total</b></td><td></td>
+              <td class="num"><b><%= rs(@tot_earned) %></b></td>
+              <td class="num"><b>− <%= rs(@tot_paid) %></b></td>
+              <td></td>
+              <td class="num"><b><%= rs(@tot_outstanding) %></b></td><td></td>
+            </tr></tfoot>
+          <% end %>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% unless current_user.view_only? %>
+  <div id="pwModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box" style="max-width:440px">
+      <button type="button" class="ke-modal-x" id="pwClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title" id="pwTitle">Pay worker</div>
+      <div class="ke-modal-msg" id="pwMsg"></div>
+      <%= form_with url: add_production_payment_path, method: :post, local: true, html: { id: "pwForm", multipart: true } do %>
+        <%= hidden_field_tag :production_party_id, "", id: "pw_id" %>
+        <%= hidden_field_tag :return_to, request.fullpath %>
+        <div class="kb-form">
+          <div class="pw-quick">
+            <button type="button" class="pw-chip" id="pwChipWeek">This week</button>
+            <button type="button" class="pw-chip" id="pwChipAll">Full outstanding</button>
+          </div>
+          <label class="ke-fld"><span>Amount (Rs)</span><%= number_field_tag :amount, nil, min: 1, step: 0.01, class: "no-spin", required: true, placeholder: "e.g. 5000" %></label>
+          <label class="ke-fld"><span>Date</span><%= date_field_tag :paid_on, Date.current %></label>
+          <label class="ke-fld"><span>Method</span><%= text_field_tag :method_detail, "cash", placeholder: "cash / online", data: { no_ss: "1" } %></label>
+          <label class="ke-fld"><span>Notes</span><%= text_field_tag :notes, nil, placeholder: "optional", data: { no_ss: "1" } %></label>
+          <label class="ke-fld"><span>Payment proof <span class="muted" style="font-weight:400;text-transform:none">(optional)</span></span><%= file_field_tag :proof, accept: "image/*,application/pdf" %></label>
+          <%= submit_tag "Record payment", class: "btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var m = document.getElementById("pwModal"), amt = m.querySelector('input[name="amount"]');
+      var curWeek = 0, curAll = 0;
+      var close = function () { m.classList.remove("open"); };
+      document.querySelectorAll(".pw-pay").forEach(function (b) {
+        b.addEventListener("click", function () {
+          document.getElementById("pw_id").value = b.dataset.id;
+          curWeek = +b.dataset.week || 0; curAll = +b.dataset.out || 0;
+          document.getElementById("pwTitle").textContent = "Pay — " + b.dataset.name;
+          document.getElementById("pwMsg").innerHTML = "This week: <b>Rs " + curWeek.toLocaleString() + "</b> · Total outstanding: <b>Rs " + curAll.toLocaleString() + "</b>";
+          amt.value = curWeek || curAll; m.classList.add("open"); amt.focus(); amt.select();
+        });
+      });
+      document.getElementById("pwChipWeek").addEventListener("click", function () { amt.value = curWeek; amt.focus(); });
+      document.getElementById("pwChipAll").addEventListener("click", function () { amt.value = curAll; amt.focus(); });
+      document.getElementById("pwClose").addEventListener("click", close);
+      m.addEventListener("click", function (e) { if (e.target === m) close(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+
+      var q = document.getElementById("pwSearch");
+      if (q) {
+        var rows = Array.prototype.slice.call(document.querySelectorAll(".pw-row")), nm = document.getElementById("pwNoMatch"), c = document.getElementById("pwCount");
+        q.addEventListener("input", function () {
+          var t = q.value.trim().toLowerCase(), n = 0;
+          rows.forEach(function (r) { var ok = !t || (r.dataset.name || "").indexOf(t) >= 0; r.style.display = ok ? "" : "none"; if (ok) n++; });
+          if (nm) nm.classList.toggle("hidden", n !== 0 || rows.length === 0);
+          if (c) c.textContent = t ? (n + " of " + rows.length) : "";
+        });
+      }
+    })();
+  </script>
+<% end %>

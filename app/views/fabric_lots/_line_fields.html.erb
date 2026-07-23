@@ -1,0 +1,24 @@
+<% cur_code = lf.object.design_variant&.design&.code %>
+<% cur_head = lf.object.heads %>
+<% party_opts = (emb_parties + [lf.object.contractor]).compact.reject(&:blank?).uniq %>
+<div class="line-row">
+  <%= lf.select :contractor, party_opts, { include_blank: "Party…" }, class: "l-contractor" %>
+  <select class="l-design-code">
+    <option value="">Design…</option>
+    <% design_codes.each do |code| %>
+      <option value="<%= code %>" <%= "selected" if cur_code == code %>><%= code %></option>
+    <% end %>
+  </select>
+  <select class="l-head">
+    <option value="">Head…</option>
+    <% head_sizes.each do |sz| %>
+      <option value="<%= sz %>" <%= "selected" if cur_head.positive? && cur_head.to_s == sz %>><%= sz %></option>
+    <% end %>
+  </select>
+  <%= lf.hidden_field :design_variant_id, class: "l-variant" %>
+  <%= lf.hidden_field :head_size, class: "l-headsize" %>
+  <span class="l-emb calc-cell" title="EMB Consumption computed from the design recipe × head">—</span>
+  <span class="l-backup calc-cell" title="Back Up Consumption computed from the design recipe × head">—</span>
+  <%= lf.hidden_field :_destroy, value: 0, class: "ld-destroy" %>
+  <button type="button" class="ld-remove" title="Remove">✕</button>
+</div>

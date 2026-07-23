@@ -1,0 +1,9 @@
+<div class="emb-row">
+  <%= ef.text_field :file_name, placeholder: "Panel", class: "ef-name" %>
+  <%= ef.number_field :stitch, placeholder: "Stitch" %>
+  <%= ef.number_field :heads, step: 0.5, placeholder: "Head" %>
+  <%= ef.number_field :reapts, step: 1, placeholder: "Reapts" %>
+  <%= ef.number_field :rate, step: 0.01, placeholder: "Rate" %>
+  <%= ef.hidden_field :_destroy, value: 0, class: "ef-destroy" %>
+  <button type="button" class="ef-remove" title="Remove">✕</button>
+</div>

@@ -1,0 +1,184 @@
+<div class="form-card form-card-wide">
+  <% if @lot.errors.any? %>
+    <div class="error-list"><%= @lot.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <%= form_with model: @lot, url: (@lot.persisted? ? fabric_lot_path(@lot) : fabric_lots_path),
+                method: (@lot.persisted? ? :patch : :post), local: true do |f| %>
+
+    <div class="form-section-title" style="border-top:none;margin-top:0;padding-top:0">Lot</div>
+    <div class="form-grid">
+      <div class="field"><%= f.label :laat_number, "Laat #" %><%= f.text_field :laat_number, placeholder: "3093" %></div>
+      <div class="field"><%= f.label :line_type, "Fabric Name" %><%= f.text_field :line_type, placeholder: "6Line" %></div>
+      <div class="field"><%= f.label :lot_date, "Date" %><%= f.date_field :lot_date %></div>
+    </div>
+
+    <div class="form-section-title">Colours &amp; Gazana (per truck / laat)</div>
+    <p class="muted" style="margin-bottom:8px">Pick a colour — the row highlights in that colour. Enter the Received Gazana; Remaining Gazana starts equal to it and drops as suits are cut.</p>
+    <div class="color-head"><span>Colour</span><span>Received Gazana</span><span>Remaining Gazana</span><span></span></div>
+    <div id="colors">
+      <%= f.fields_for :fabric_lot_colors do |cf| %>
+        <%= render "color_fields", cf: cf %>
+      <% end %>
+    </div>
+    <template id="color-template">
+      <%= f.fields_for :fabric_lot_colors, FabricLotColor.new, child_index: "NEW_COLOR" do |cf| %>
+        <%= render "color_fields", cf: cf %>
+      <% end %>
+    </template>
+    <button type="button" id="addColor" class="btn-soft" style="margin-top:8px">+ Add colour</button>
+
+    <div class="fl-total-remaining">
+      <span>Total Remaining Gazana</span>
+      <b id="totalRemaining">—</b>
+    </div>
+
+    <% if @lot.persisted? %>
+      <%# Design Lines are managed on the lot sheet (matrix) — the edit page focuses on Extra Cloth %>
+      <% lot_contractors = @lot.fabric_lot_lines.map(&:contractor).map { |c| c.to_s.strip }.reject(&:blank?).uniq %>
+      <% lot_designs = @lot.fabric_lot_lines.map { |l| l.design_variant&.design&.code }.compact.uniq %>
+      <% adj_contractors = ([LotAdjustment::MASTER] + (lot_contractors.presence || @emb_parties)).uniq %>   <%# Master (own employee) always first, then this lot's contractors %>
+      <% adj_designs = lot_designs.presence || @design_codes %>
+
+      <div class="form-section-title">Extra Cloth / Gazana Adjustments <span class="muted" style="text-transform:none;font-weight:400">— extra meters issued to a contractor (e.g. re-work after cloth was ruined); subtracted from that colour's Remaining Gazana</span></div>
+      <div class="adj-head"><span>Contractor</span><span>Design</span><span class="num">Gazana (m)</span><span>Colour</span><span>Note</span><span>Date</span><span></span></div>
+      <div id="adjustments">
+        <%= f.fields_for :lot_adjustments do |af| %>
+          <%= render "adjustment_fields", af: af, colours: @lot.fabric_lot_colors, design_codes: adj_designs, emb_parties: adj_contractors %>
+        <% end %>
+      </div>
+      <template id="adj-template">
+        <%= f.fields_for :lot_adjustments, LotAdjustment.new, child_index: "NEW_ADJ" do |af| %>
+          <%= render "adjustment_fields", af: af, colours: @lot.fabric_lot_colors, design_codes: adj_designs, emb_parties: adj_contractors %>
+        <% end %>
+      </template>
+      <button type="button" id="addAdj" class="btn-soft" style="margin-top:8px">+ Add extra cloth entry</button>
+    <% else %>
+      <p class="muted" style="margin-top:14px">Save the lot with its colours first, then add extra cloth entries on the Edit page.</p>
+    <% end %>
+
+    <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+      <%= f.submit (@lot.persisted? ? "Save changes" : "Create lot"), class: "btn-primary" %>
+      <%= link_to "Cancel", (@lot.persisted? ? fabric_lot_path(@lot) : fabric_lots_path), class: "btn-soft" %>
+    </div>
+  <% end %>
+
+  <% if @lot.persisted? %>
+    <div style="margin-top:14px; border-top:1px solid #eef1f4; padding-top:14px">
+      <%= button_to "Delete lot", fabric_lot_path(@lot), method: :delete, class: "btn-sm del",
+            form: { data: { turbo_confirm: "Delete Laat ##{@lot.laat_number}?" } } %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  (function () {
+    function wire(addId, boxId, tplId, rowClass, destroyClass, removeClass, token) {
+      const tpl = document.getElementById(tplId), box = document.getElementById(boxId), add = document.getElementById(addId);
+      if (!add) return;
+      const re = new RegExp(token, "g");
+      add.addEventListener("click", () => box.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(re, Date.now().toString())));
+      box.addEventListener("click", (e) => {
+        if (!e.target.classList.contains(removeClass)) return;
+        const row = e.target.closest("." + rowClass), d = row.querySelector("." + destroyClass);
+        if (d) { d.value = "1"; row.style.display = "none"; } else { row.remove(); }
+      });
+    }
+    wire("addColor", "colors", "color-template", "color-row", "cd-destroy", "cd-remove", "NEW_COLOR");
+    wire("addLine", "lines", "line-template", "line-row", "ld-destroy", "ld-remove", "NEW_LINE");
+    wire("addAdj", "adjustments", "adj-template", "adj-row", "adj-destroy", "adj-remove", "NEW_ADJ");
+
+    // Colour picker -> tint the whole row with the chosen colour
+    function tint(input) {
+      const row = input.closest(".color-row");
+      const hex = input.value || "";
+      row.style.setProperty("--tint", hex || "transparent");
+      row.classList.toggle("is-tinted", !!hex);
+    }
+    const colorsBox = document.getElementById("colors");
+    colorsBox.addEventListener("input", (e) => { if (e.target.classList.contains("color-swatch-input")) tint(e.target); });
+    // initialise existing + template-cloned rows
+    colorsBox.querySelectorAll(".color-swatch-input").forEach((s) => tint(s));
+
+    // ---- Live gazana subtraction per colour (Design Lines) ----
+    const DESIGN_RECIPE = <%= (@design_recipe || {}).to_json.html_safe %>;   // code -> {variant_id, repeats, components}
+    const EMB_FACTOR = <%= @emb_factor || 0.337 %>, ROUND_STEP = <%= @round_step || 0.5 %>, BACKUP_DIV = <%= @backup_div || 39 %>;
+    const GAZ_PER_SUIT = <%= Setting.value_for("gaz_per_suit_issued", 3.5).to_f %>;
+    // Design consumption (EMB + Back Up) already assigned per colour on the sheet — fixed here (design lines are edited on the sheet)
+    const CONSUMED = <%= (@lot.persisted? ? @lot.fabric_lot_colors.each_with_object({}) { |c, h| h[c.id.to_s] = c.consumed } : {}).to_json.html_safe %>;
+    const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+    const ceilTo = (v) => (!ROUND_STEP ? v : Math.ceil(Number((v / ROUND_STEP).toFixed(9))) * ROUND_STEP);
+    // EMB & Back Up from the design recipe at a given head — the same formula as Designs (AR)
+    function embBackup(code, head) {
+      const r = DESIGN_RECIPE[code];
+      if (!r || !head) return { none: true, emb: 0, backup: 0, variant: "" };
+      const emb = ceilTo(EMB_FACTOR * head * num(r.repeats));
+      const backup = BACKUP_DIV ? ceilTo((num(r.components) / BACKUP_DIV) * head) : 0;
+      return { none: false, emb: emb, backup: backup, variant: r.variant_id };
+    }
+
+    const recvOf = (row) => num(row.querySelector(".c-recv") && row.querySelector(".c-recv").value)
+                          - num(row.querySelector(".c-wast") && row.querySelector(".c-wast").value);
+
+    function recompute() {
+      // 1. each line: resolve Design + Machine Head -> variant -> EMB/Backup; sum consumption
+      let totalConsumed = 0;
+      const linesBox = document.getElementById("lines");
+      if (linesBox) {
+        linesBox.querySelectorAll(".line-row").forEach((row) => {
+          if (row.style.display === "none") return;
+          const code = (row.querySelector(".l-design-code") || {}).value;
+          const head = num((row.querySelector(".l-head") || {}).value);
+          const vidEl = row.querySelector(".l-variant"), headEl = row.querySelector(".l-headsize");
+          const embEl = row.querySelector(".l-emb"), bkEl = row.querySelector(".l-backup");
+          const r = embBackup(code, head);
+          if (vidEl) vidEl.value = r.none ? "" : r.variant;   // design_variant_id (recipe)
+          if (headEl) headEl.value = head ? head : "";        // head_size
+          if (embEl) embEl.textContent = r.none ? "—" : r.emb.toFixed(1);
+          if (bkEl) bkEl.textContent = r.none ? "—" : r.backup.toFixed(1);
+          totalConsumed += r.emb + r.backup;                  // applies to every colour
+        });
+      }
+      // 2. Remaining Gazana per colour = received − wastage − design consumption − extra cloth (live)
+      let totalRem = 0;
+      colorsBox.querySelectorAll(".color-row").forEach((row) => {
+        if (row.style.display === "none") return;
+        const cell = row.querySelector(".c-remaining");
+        if (!cell) return;
+        const cid = row.dataset.colorId;
+        const design = (CONSUMED[cid] != null) ? num(CONSUMED[cid]) : totalConsumed;   // design EMB+Back Up for this colour
+        const extra = adjustmentSumFor(cid);                                            // extra cloth being added, live
+        const rem = Math.round((recvOf(row) - design - extra) * 100) / 100;
+        cell.textContent = rem;
+        cell.classList.toggle("neg", rem < 0);
+        totalRem += rem;
+      });
+      const totEl = document.getElementById("totalRemaining");
+      if (totEl) totEl.textContent = (Math.round(totalRem * 100) / 100).toLocaleString();
+    }
+
+    // Sum of Extra Cloth / Gazana Adjustment rows currently assigned to a colour (not removed)
+    function adjustmentSumFor(cid) {
+      const box = document.getElementById("adjustments");
+      if (!box || cid == null) return 0;
+      let sum = 0;
+      box.querySelectorAll(".adj-row").forEach((row) => {
+        if (row.style.display === "none") return;
+        const d = row.querySelector(".adj-destroy");
+        if (d && d.value === "1") return;
+        const sel = row.querySelector(".adj-colour");
+        if (sel && String(sel.value) === String(cid)) sum += num((row.querySelector(".adj-gazana") || {}).value);
+      });
+      return sum;
+    }
+
+    document.addEventListener("input", (e) => { if (e.target.closest("#lines, #colors, #adjustments")) recompute(); });
+    document.addEventListener("change", (e) => { if (e.target.closest("#lines, #colors, #adjustments")) recompute(); });
+    document.addEventListener("click", (e) => {
+      if (e.target.id === "addLine" || e.target.classList.contains("ld-remove") ||
+          e.target.id === "addColor" || e.target.classList.contains("cd-remove") ||
+          e.target.id === "addAdj" || e.target.classList.contains("adj-remove")) setTimeout(recompute, 0);
+    });
+    recompute();
+  })();
+</script>

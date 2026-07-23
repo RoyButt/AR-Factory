@@ -1,0 +1,79 @@
+<style>
+  @page { size: A5 landscape; margin: 8mm; }
+  .gp { width: 100%; }
+  .gp-actions { text-align: right; margin-bottom: 8px; }
+  .gp-actions button, .gp-actions a { padding: 7px 14px; border: 1px solid #d5dde4; border-radius: 8px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; }
+  .gp-actions button { background: #22303f; color: #fff; }
+  .gp-actions a { color: #37506b; margin-left: 6px; }
+  .gp-part { border: 1.5px solid #22303f; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  .gp-head { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; border-bottom: 1px solid #cdd6df; padding-bottom: 7px; margin-bottom: 8px; }
+  .gp-head b { font-size: 14px; }
+  .gp-title { font-size: 13px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: #37506b; margin-bottom: 6px; }
+  table.gp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.gp-table th, table.gp-table td { border: 1px solid #b9c5d2; padding: 5px 7px; text-align: center; }
+  table.gp-table thead th { background: #eef2f7; font-weight: 700; }
+  table.gp-table td.gp-name, table.gp-table th.gp-name { text-align: left; font-weight: 700; white-space: nowrap; }
+  .gp-sign { min-width: 90px; }
+  table.gp-prog td { text-align: left; }
+  table.gp-prog td.gp-h { text-align: center; font-weight: 800; width: 60px; }
+  @media print { .gp-actions { display: none !important; } }
+</style>
+
+<div class="gp">
+  <div class="gp-actions">
+    <button onclick="window.print()">🖨 Print</button>
+    <a href="<%= fabric_lot_path(@lot) %>">← Back</a>
+  </div>
+
+  <%# ── Portion 1 · Gazana detail ── %>
+  <div class="gp-part">
+    <div class="gp-head">
+      <div>Laat: <b>#<%= @lot.laat_number %></b></div>
+      <div>Fabric: <b><%= @lot.line_type.presence || "—" %></b></div>
+      <div>Date: <b><%= @lot.lot_date&.strftime("%d / %m / %Y") || "—" %></b></div>
+    </div>
+    <div class="gp-title">Gazana Detail (cloth per colour)</div>
+    <table class="gp-table">
+      <thead>
+        <tr>
+          <th>Laat</th>
+          <% @colours.each do |c| %><th><%= c.name.presence || "—" %></th><% end %>
+          <th>Total</th>
+          <th class="gp-name">Party</th>
+          <th class="gp-sign">Signature</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @gaze.empty? %>
+          <tr><td colspan="<%= @colours.size + 4 %>">No contractors selected.</td></tr>
+        <% end %>
+        <% @gaze.each do |g| %>
+          <tr>
+            <td><%= @lot.laat_number %></td>
+            <% g[:per_colour].each do |v| %><td><%= v.positive? ? v : "" %></td><% end %>
+            <td><b><%= g[:total] %></b></td>
+            <td class="gp-name"><%= g[:contractor] %></td>
+            <td class="gp-sign"></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <%# ── Portion 2 · Embroidery program ── %>
+  <div class="gp-part">
+    <div class="gp-title">Embroidery Program — Laat #<%= @lot.laat_number %></div>
+    <table class="gp-table gp-prog">
+      <thead><tr><th class="gp-h">Head</th><th>Design → Laat count</th></tr></thead>
+      <tbody>
+        <% if @program.empty? %><tr><td colspan="2">—</td></tr><% end %>
+        <% @program.each do |p| %>
+          <tr>
+            <td class="gp-h"><%= p[:head] %></td>
+            <td><% p[:designs].each_with_index do |d, i| %><%= " · " if i > 0 %><b><%= d[:design] %></b> → laat <b><%= d[:count] %></b><% end %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

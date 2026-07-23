@@ -1,0 +1,6 @@
+<div class="vc-f comp-item removable">
+  <button type="button" class="comp-remove" title="Remove">✕</button>
+  <%= cf.text_field :name, placeholder: "Name", class: "comp-name", required: true %>
+  <%= cf.number_field :value, step: 0.5, placeholder: "0.0", class: "comp-value", required: true %>
+  <%= cf.hidden_field :_destroy, value: 0, class: "comp-destroy" %>
+</div>

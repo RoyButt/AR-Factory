@@ -1,0 +1,7 @@
+<div class="addon-row">
+  <%= af.select :target, CardAddon::TARGETS.map { |k, v| [v, k] } %>
+  <%= af.text_field :label, placeholder: "Label (e.g. Handling)" %>
+  <%= af.number_field :amount, step: 0.01, placeholder: "Amount" %>
+  <%= af.hidden_field :_destroy, value: 0, class: "ad-destroy" %>
+  <button type="button" class="ad-remove" title="Remove">✕</button>
+</div>

@@ -1,0 +1,54 @@
+<div class="form-card">
+  <% if @party.errors.any? %><div class="error-list"><%= @party.errors.full_messages.to_sentence %></div><% end %>
+  <%= form_with model: @party, url: (@party.persisted? ? production_party_path(@party) : production_parties_path), method: (@party.persisted? ? :patch : :post), local: true, html: { multipart: true } do |f| %>
+    <div class="form-section-title">Profile picture</div>
+    <div class="pp-photo-up">
+      <div class="pp-photo-preview">
+        <% if @party.photo.attached? %><%= image_tag rails_blob_path(@party.photo), alt: "Profile picture" %>
+        <% else %><span class="pp-photo-empty"><%= @party.name.to_s.first.to_s.upcase.presence || "🧷" %></span><% end %>
+      </div>
+      <div class="pp-photo-controls">
+        <%= f.file_field :photo, accept: "image/*", class: "js-image-input" %>
+        <% if @party.photo.attached? %>
+          <label class="pp-photo-remove"><%= check_box_tag "production_party[remove_photo]", "1" %> Remove current picture</label>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="field"><%= f.label :name %><%= f.text_field :name, placeholder: "e.g. Bilal 3", required: true %></div>
+      <div class="field"><%= f.label :contact, "Contact number" %><%= f.text_field :contact, placeholder: "phone" %></div>
+      <div class="field"><%= f.label :family_contact, "Additional contact / family" %><%= f.text_field :family_contact, placeholder: "family / alternate number" %></div>
+      <div class="field"><%= f.label :notes %><%= f.text_field :notes, placeholder: "optional" %></div>
+      <% adv = @party.persisted? ? @party.advance_amount : 0 %>
+      <div class="field">
+        <%= label_tag "production_party[advance_payment]", "Advance payment (Rs)" %>
+        <%= number_field_tag "production_party[advance_payment]", (adv if adv > 0), min: 0, step: 0.01, placeholder: "e.g. 5000", class: "no-spin" %>
+        <small class="muted">Paid to them now — credited and then deducted from their stitching earnings. Set to 0 / blank to remove.</small>
+      </div>
+    </div>
+
+    <div class="form-section-title">CNIC pictures</div>
+    <div class="cnic-uploads">
+      <div class="cnic-up">
+        <label>CNIC — Front</label>
+        <div class="img-preview">
+          <% if @party.cnic_front.attached? %><%= image_tag rails_blob_path(@party.cnic_front) %><% end %>
+        </div>
+        <%= f.file_field :cnic_front, accept: "image/*", class: "js-image-input" %>
+      </div>
+      <div class="cnic-up">
+        <label>CNIC — Back</label>
+        <div class="img-preview">
+          <% if @party.cnic_back.attached? %><%= image_tag rails_blob_path(@party.cnic_back) %><% end %>
+        </div>
+        <%= f.file_field :cnic_back, accept: "image/*", class: "js-image-input" %>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <%= f.submit (@party.persisted? ? "Save" : "Add person"), class: "btn-primary" %>
+      <%= link_to "Cancel", production_parties_path, class: "btn-soft" %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,422 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>Khatta (Emb)</h1>
+        <p class="page-sub">Auto-fetched from Fabric Lots — grouped by Laat, every embroiderer &amp; design under it. Click <b>＋ Return</b> to log suits coming back.</p>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="ke-stats">
+      <div class="ke-stat"><span>Suits Sent</span><b><%= number_with_delimiter(@sum_sent) %></b></div>
+      <div class="ke-stat ke-stat-ok"><span>Returned</span><b><%= number_with_delimiter(@sum_returned) %></b></div>
+      <div class="ke-stat ke-stat-warn"><span>Pending</span><b><%= number_with_delimiter(@sum_pending) %></b></div>
+      <div class="ke-stat ke-stat-bill"><span>Emb Bill</span><b><%= rs(@sum_bill) %></b></div>
+      <div class="ke-stat ke-stat-claim"><span>Claims</span><b><%= rs(@sum_claim) %></b></div>
+      <div class="ke-stat ke-stat-total"><span>Total Billing</span><b><%= rs(@sum_total) %></b></div>
+    </div>
+
+    <!-- Still out at embroidery (always visible) -->
+    <div class="panel pending-panel ke-pending-top">
+      <div class="panel-head">
+        <h2>⏳ Still out at embroidery</h2>
+        <span class="muted"><b class="pending-big"><%= number_with_delimiter(@total_pending) %></b> suits pending across <%= @pending.size %> line<%= "s" unless @pending.size == 1 %></span>
+      </div>
+      <% if @pending.empty? %>
+        <p class="muted" style="padding:14px 18px">Nothing pending — everything sent has been returned. 🎉</p>
+      <% else %>
+        <div class="table-scroll">
+          <table class="utable" data-no-coltoggle>
+            <thead><tr><th>Laat</th><th>Contractor</th><th>Design</th><th class="num">Sent</th><th class="num">Returned</th><th class="num">Pending</th></tr></thead>
+            <tbody>
+              <% @pending.each do |d| %>
+                <tr>
+                  <td>#<%= d.laat %></td>
+                  <td><b><%= d.contractor %></b></td>
+                  <td><%= d.design %></td>
+                  <td class="num"><%= d.suits_sent %></td>
+                  <td class="num"><%= d.returned %></td>
+                  <td class="num"><span class="pending-badge"><%= d.pending %></span></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Filters -->
+    <div class="panel">
+      <%= form_with url: khatta_embs_path, method: :get, local: true do %>
+        <div class="filter-bar">
+          <div class="filter-f filter-grow"><label>Search</label>
+            <%= text_field_tag :q, params[:q], placeholder: "Laat, contractor or design…", data: { no_ss: "1" } %></div>
+          <div class="filter-f"><label>Laat</label>
+            <%= select_tag :laat, options_for_select([["All laats", ""]] + @filter_laats.map { |l| ["##{l}", l] }, params[:laat]) %></div>
+          <div class="filter-f"><label>Contractor</label>
+            <%= select_tag :contractor, options_for_select([["All", ""]] + @filter_parties.map { |p| [p, p] }, params[:contractor]) %></div>
+          <div class="filter-f"><label>Design</label>
+            <%= select_tag :design, options_for_select([["All", ""]] + @filter_designs.map { |d| [d, d] }, params[:design]) %></div>
+          <div class="filter-f"><label>Status</label>
+            <%= select_tag :status, options_for_select([["All", ""], ["Pending (still out)", "pending"], ["Partly returned", "started"], ["Complete", "complete"]], params[:status]) %></div>
+          <div class="filter-actions">
+            <%= submit_tag "Apply", class: "btn-sm edit" %>
+            <%= link_to "Clear", khatta_embs_path, class: "btn-sm" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @by_laat.empty? %>
+      <div class="panel"><p class="muted" style="text-align:center;padding:28px">No embroidery dispatches match — assign contractors &amp; designs on the Fabric Lots, or clear the filters.</p></div>
+    <% end %>
+
+    <% @by_laat.each do |lot, rows| %>
+      <% l_sent = rows.sum(&:suits_sent) %>
+      <% l_ret  = rows.sum(&:returned) %>
+      <% l_pend = rows.sum { |d| [d.pending, 0].max } %>
+      <% l_bill = rows.sum(&:bill) %>
+      <% l_claim = rows.sum(&:claim_amount) %>
+      <% l_total = rows.sum(&:total_bill) %>
+      <div class="panel ke-laat">
+        <div class="ke-laat-head">
+          <div class="ke-laat-title">
+            <span class="ke-laat-badge">Laat #<%= lot.laat_number %></span>
+            <span class="ke-laat-meta"><%= lot.line_type.presence %><%= " · " if lot.line_type.present? %><%= lot.lot_date&.strftime("%d %b %Y") %> · <%= rows.size %> contractor line<%= "s" unless rows.size == 1 %></span>
+            <span class="ke-swatches">
+              <% lot.fabric_lot_colors.each do |c| %><span class="ke-sw" style="background:<%= c.swatch %>" title="<%= c.name %>"></span><% end %>
+            </span>
+          </div>
+          <div class="ke-laat-tot">
+            <span>Sent <b><%= number_with_delimiter(l_sent) %></b></span>
+            <span class="ok">Returned <b><%= number_with_delimiter(l_ret) %></b></span>
+            <span class="warn">Pending <b><%= number_with_delimiter(l_pend) %></b></span>
+            <span class="bill">Emb Bill <b><%= rs(l_bill) %></b></span>
+            <% if l_claim.positive? %><span class="claim">Claim <b><%= rs(l_claim) %></b></span><span class="total">Total <b><%= rs(l_total) %></b></span><% end %>
+            <% pct = l_sent.positive? ? (l_ret * 100.0 / l_sent).round : 0 %>
+            <span class="ke-prog" title="<%= pct %>% returned"><span class="ke-prog-fill" style="width:<%= [pct, 100].min %>%"></span></span>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="utable ke-table" data-no-coltoggle>
+            <thead><tr><th>Contractor</th><th>Design</th><th class="num">Suits Sent</th><th class="num">Returned</th><th class="num">Pending</th><th class="num">Rate</th><th class="num">EMB Cost/suit</th><th class="num">Emb Bill</th><th class="num">Claim</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>
+              <% rows.each do |d| %>
+                <tr class="ke-row">
+                  <td><b><%= d.contractor %></b></td>
+                  <td><%= d.design %></td>
+                  <td class="num"><%= d.suits_sent %></td>
+                  <td class="num">
+                    <%= d.returned %>
+                    <% if d.last_date %><div class="ke-subdate"><%= d.last_date.strftime("%d %b %Y") %></div><% end %>
+                  </td>
+                  <td class="num"><% if d.pending.positive? %><span class="pending-badge"><%= d.pending %></span><% else %><span class="done-badge">✓ done</span><% end %></td>
+                  <td class="num">
+                    <% if current_user.view_only? %>
+                      <%= rs(d.rate) %>
+                    <% else %>
+                      <%= form_with url: set_rate_khatta_embs_path, method: :post, local: true, html: { class: "ke-rate-form" } do %>
+                        <%= hidden_field_tag :fabric_lot_id, d.lot.id %>
+                        <%= hidden_field_tag :contractor, d.contractor %>
+                        <%= hidden_field_tag :design_code, d.design %>
+                        <%= hidden_field_tag :suits_sent, d.suits_sent %>
+                        <span class="ke-rate-wrap">Rs <%= number_field_tag :rate, (d.rate == d.rate.to_i ? d.rate.to_i : d.rate), step: 0.01, min: 0, class: "no-spin ke-rate", title: "Editable — defaults from cost card; saves on change" %></span>
+                      <% end %>
+                    <% end %>
+                  </td>
+                  <td class="num"><%= rs(d.emb_cost) %></td>
+                  <td class="num"><b><%= rs(d.bill) %></b></td>
+                  <td class="num">
+                    <% if d.claim_suits > 0 %>
+                      <button type="button" class="claim-badge" data-damaged="<%= d.claim_suits %>" data-total="<%= d.total_rate %>" data-cm="<%= d.cm %>" data-per="<%= d.claim_per_suit %>" data-amount="<%= d.claim_amount %>" data-contractor="<%= d.contractor %>" data-design="<%= d.design %>" title="Claim breakdown"><%= rs(d.claim_amount) %> <span class="claim-i">ⓘ</span></button>
+                    <% else %>
+                      <span class="muted">—</span>
+                    <% end %>
+                  </td>
+                  <td style="text-align:right">
+                    <% unless current_user.view_only? %>
+                      <div class="ke-cta">
+                        <% if d.pending.positive? %>
+                          <button type="button" class="cta cta-complete ke-complete" data-lot="<%= d.lot.id %>" data-contractor="<%= d.contractor %>" data-design="<%= d.design %>" data-sent="<%= d.suits_sent %>" data-suits="<%= d.pending %>" data-laat="<%= d.laat %>" title="Mark all remaining delivered">✓ Complete</button>
+                          <button type="button" class="cta cta-return ke-toggle" data-target="<%= d.dom_id %>" data-title="<%= "#{d.contractor} · #{d.design} · Laat ##{d.laat}" %>" data-focus="suits" title="Add a return">＋ Return</button>
+                        <% end %>
+                        <button type="button" class="cta cta-claim ke-toggle" data-target="<%= d.dom_id %>" data-title="<%= "#{d.contractor} · #{d.design} · Laat ##{d.laat}" %>" data-focus="claim_suits" title="Record damaged (claim)">⚠ Claim</button>
+                        <% if d.deliveries.any? || d.claim_suits > 0 %>
+                          <button type="button" class="cta cta-edit ke-toggle" data-target="<%= d.dom_id %>" data-title="<%= "#{d.contractor} · #{d.design} · Laat ##{d.laat}" %>" data-focus="suits" title="Edit logged returns">✎ Edit</button>
+                          <%= button_to "↺ Reset", delete_returns_khatta_embs_path(id: d.emb.id), method: :delete,
+                                class: "cta cta-delete", form: { style: "display:inline" },
+                                data: { turbo_confirm: "Reset ALL returns/claim for #{d.contractor} (#{d.design})?#{' This unlocks the lot.' if d.pending <= 0 && d.deliveries.any?}" } %>
+                        <% elsif d.pending <= 0 %>
+                          <span class="done-badge">✓ delivered</span>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr id="<%= d.dom_id %>" class="ke-detail hidden">
+                  <td colspan="10">
+                    <div class="ke-detail-box">
+                      <% unless current_user.view_only? %>
+                        <%= form_with url: add_return_khatta_embs_path, method: :post, local: true, html: { class: "ke-return-form" } do %>
+                          <%= hidden_field_tag :fabric_lot_id, d.lot.id %>
+                          <%= hidden_field_tag :contractor, d.contractor %>
+                          <%= hidden_field_tag :design_code, d.design %>
+                          <%= hidden_field_tag :suits_sent, d.suits_sent %>
+                          <label class="ke-fld">Suits returned
+                            <%= number_field_tag :suits, nil, min: 1, step: 1, class: "no-spin", placeholder: "e.g. 50", required: true %></label>
+                          <label class="ke-fld">Date
+                            <%= date_field_tag :delivered_on, Date.current %></label>
+                          <%= submit_tag "Add return", class: "btn-sm edit" %>
+                          <span class="muted" style="font-size:12px">Pending: <b><%= d.pending %></b> of <%= d.suits_sent %></span>
+                        <% end %>
+                      <% end %>
+                      <% if d.deliveries.any? %>
+                        <div class="ke-returns">
+                          <span class="ke-returns-h">Returns logged (edit or remove):</span>
+                          <% d.deliveries.each do |dv| %>
+                            <span class="ke-return-edit">
+                              <%= form_with url: update_return_khatta_embs_path, method: :patch, local: true, html: { class: "ke-edit-form" } do %>
+                                <%= hidden_field_tag :delivery_id, dv.id %>
+                                <%= number_field_tag :suits, dv.suits, min: 1, step: 1, class: "no-spin ke-edit-suits", title: "Suits" %>
+                                <%= date_field_tag :delivered_on, dv.delivered_on, class: "ke-edit-date" %>
+                                <%= submit_tag "Save", class: "btn-sm edit" %>
+                              <% end %>
+                              <%= button_to "✕", remove_return_khatta_embs_path(delivery_id: dv.id), method: :delete,
+                                    class: "ke-del-one", form: { style: "display:inline" }, title: "Remove this return",
+                                    data: { turbo_confirm: "Remove this return of #{dv.suits} suits?" } %>
+                            </span>
+                          <% end %>
+                        </div>
+                      <% else %>
+                        <span class="muted" style="font-size:12px">No returns logged yet.</span>
+                      <% end %>
+
+                      <% unless current_user.view_only? %>
+                        <div class="ke-claim-box">
+                          <% ccols = d.lot ? d.lot.color_suits_for(d.design) : [] %>
+                          <% cexisting = d.emb ? d.emb.claim_colors.select { |c| c.kind == "emb" } : [] %>
+                          <%= form_with url: set_claim_khatta_embs_path, method: :post, local: true, html: { class: "ke-return-form claim-form" } do %>
+                            <%= hidden_field_tag :fabric_lot_id, d.lot.id %>
+                            <%= hidden_field_tag :contractor, d.contractor %>
+                            <%= hidden_field_tag :design_code, d.design %>
+                            <%= hidden_field_tag :suits_sent, d.suits_sent %>
+                            <label class="ke-fld" style="margin-bottom:4px">⚠ Damaged / claim suits — by colour</label>
+                            <% if ccols.empty? %>
+                              <span class="muted" style="font-size:12px">No colours found on this laat's fabric lot — can't claim by colour.</span>
+                            <% else %>
+                              <div class="claim-rows">
+                                <% (cexisting.presence || [nil]).each do |cc| %>
+                                  <div class="claim-row">
+                                    <select name="claim_colors[][color_id]" class="claim-color" data-no-ss="1" required>
+                                      <option value="">Colour…</option>
+                                      <% ccols.each do |c| %><option value="<%= c[:color_id] %>" <%= "selected" if cc && cc.fabric_lot_color_id == c[:color_id] %>><%= c[:name].presence || "—" %> (<%= c[:net] %> left)</option><% end %>
+                                    </select>
+                                    <input type="number" name="claim_colors[][suits]" min="1" step="1" class="claim-suits no-spin" value="<%= cc&.suits %>" placeholder="suits" required>
+                                    <button type="button" class="claim-row-del" title="Remove colour">✕</button>
+                                  </div>
+                                <% end %>
+                              </div>
+                              <div class="claim-actions">
+                                <button type="button" class="btn-sm claim-add">＋ colour</button>
+                                <%= submit_tag "Save claim", class: "btn-sm edit" %>
+                              </div>
+                              <% if d.total_rate.positive? %>
+                                <span class="muted" style="font-size:12px">Each suit = Total <%= rs(d.total_rate) %> − CM <%= rs(d.cm) %> = <b><%= rs(d.claim_per_suit) %></b>/suit<% if d.claim_suits.positive? %> · current <b><%= rs(d.claim_amount) %></b><% end %></span>
+                              <% else %>
+                                <span class="muted" style="font-size:12px">No cost card for <%= d.design %> — add one to price the claim.</span>
+                              <% end %>
+                            <% end %>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<%# Complete-delivered confirm modal + its hidden submit form %>
+<% unless current_user.view_only? %>
+  <%= form_with url: complete_delivery_khatta_embs_path, method: :post, local: true, id: "keCompleteForm" do %>
+    <%= hidden_field_tag :fabric_lot_id, "", id: "kc_lot" %>
+    <%= hidden_field_tag :contractor, "", id: "kc_contractor" %>
+    <%= hidden_field_tag :design_code, "", id: "kc_design" %>
+    <%= hidden_field_tag :suits_sent, "", id: "kc_sent" %>
+  <% end %>
+  <div id="keModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box">
+      <div class="ke-modal-title">Confirm delivery</div>
+      <div class="ke-modal-msg" id="keModalMsg"></div>
+      <div class="ke-modal-actions">
+        <button type="button" class="btn-soft" id="keModalNo">No</button>
+        <button type="button" class="btn-primary" id="keModalYes">Yes, delivered</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="keManageModal" class="ke-modal" aria-hidden="true">
+    <div class="ke-modal-box ke-manage-box">
+      <button type="button" class="ke-modal-x" id="keManageClose" aria-label="Close">✕</button>
+      <div class="ke-modal-title" id="keManageTitle"></div>
+      <div id="keManageBody"></div>
+    </div>
+  </div>
+<% end %>
+
+<script>
+  (function () {
+    var keModal = document.getElementById("keModal");
+    var keMsg = keModal && document.getElementById("keModalMsg");
+    var money = function (n) { return "Rs " + Number(n).toLocaleString(); };
+
+    // ---- per-render wiring (re-run after each AJAX content swap) ----
+    function initKhatta() {
+      document.querySelectorAll(".ke-toggle").forEach(function (b) {
+        if (b._w) return; b._w = 1;
+        b.addEventListener("click", function () { openManage(b); });
+      });
+      document.querySelectorAll(".ke-rate").forEach(function (inp) {
+        if (inp._w) return; inp._w = 1;
+        inp.addEventListener("change", function () { var f = inp.closest("form"); if (f) (f.requestSubmit ? f.requestSubmit() : f.submit()); });
+      });
+      document.querySelectorAll(".ke-complete").forEach(function (b) {
+        if (b._w || !keModal) return; b._w = 1;
+        b.addEventListener("click", function () {
+          document.getElementById("kc_lot").value = b.dataset.lot;
+          document.getElementById("kc_contractor").value = b.dataset.contractor;
+          document.getElementById("kc_design").value = b.dataset.design;
+          document.getElementById("kc_sent").value = b.dataset.sent;
+          keMsg.innerHTML = "Really — did <b>" + b.dataset.contractor + "</b> deliver all <b>" + b.dataset.suits +
+                            "</b> remaining suits of <b>" + b.dataset.design + "</b> (Laat #" + b.dataset.laat + ")?";
+          keModal.classList.add("open");
+        });
+      });
+      document.querySelectorAll(".claim-badge").forEach(function (b) {
+        if (b._w) return; b._w = 1;
+        b.addEventListener("click", function (e) { e.stopPropagation(); openClaimPop(b); });
+      });
+    }
+
+    // ---- one-time: complete modal ----
+    if (keModal) {
+      var closeModal = function () { keModal.classList.remove("open"); };
+      document.getElementById("keModalNo").addEventListener("click", closeModal);
+      keModal.addEventListener("click", function (e) { if (e.target === keModal) closeModal(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+      document.getElementById("keModalYes").addEventListener("click", function () {
+        var f = document.getElementById("keCompleteForm"); f.requestSubmit ? f.requestSubmit() : f.submit();
+      });
+    }
+
+    // ---- one-time: "manage returns / claim" modal (opened by ＋Return / ⚠Claim / ✎Edit) ----
+    var manageModal = document.getElementById("keManageModal");
+    var manageBody = manageModal && document.getElementById("keManageBody");
+    var manageTitle = manageModal && document.getElementById("keManageTitle");
+    function closeManage() { if (manageModal) manageModal.classList.remove("open"); }
+    function openManage(cta) {
+      if (!manageModal) return;
+      var row = document.getElementById(cta.dataset.target);
+      var box = row && row.querySelector(".ke-detail-box");
+      if (!box) return;
+      manageBody.innerHTML = box.innerHTML;             // clone the forms into the modal
+      manageTitle.textContent = cta.dataset.title || "Manage returns";
+      manageModal.classList.add("open");
+      var inp = manageBody.querySelector('input[name="' + (cta.dataset.focus || "suits") + '"]');
+      if (inp) inp.focus();
+    }
+    if (manageModal) {
+      document.getElementById("keManageClose").addEventListener("click", closeManage);
+      manageModal.addEventListener("click", function (e) { if (e.target === manageModal) closeManage(); });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeManage(); });
+    }
+
+    // ---- one-time: claim breakdown popup (each value to verify) ----
+    var claimPop;
+    function openClaimPop(b) {
+      if (!claimPop) { claimPop = document.createElement("div"); claimPop.className = "adj-pop"; document.body.appendChild(claimPop); }
+      claimPop.innerHTML =
+        '<div class="adj-pop-h">⚠ Claim — ' + b.dataset.contractor + ' · ' + b.dataset.design + '</div>' +
+        '<div class="adj-pop-row">Damaged suits &nbsp;=&nbsp; <b>' + b.dataset.damaged + '</b></div>' +
+        '<div class="adj-pop-row">Total (cost card) &nbsp;=&nbsp; <b>' + money(b.dataset.total) + '</b></div>' +
+        '<div class="adj-pop-row">CM (cost card) &nbsp;=&nbsp; <b>' + money(b.dataset.cm) + '</b></div>' +
+        '<div class="adj-pop-row">Per suit = Final − CM = <b>' + money(b.dataset.per) + '</b></div>' +
+        '<div class="adj-pop-row" style="border-top:1px solid #e6d6d6;margin-top:2px;font-size:13px">' +
+          b.dataset.damaged + ' × ' + money(b.dataset.per) + ' = <b>' + money(b.dataset.amount) + '</b></div>';
+      var r = b.getBoundingClientRect();
+      claimPop.style.left = Math.min(r.left, window.innerWidth - 300) + "px";
+      claimPop.style.top = (r.bottom + 6) + "px";
+      claimPop.classList.add("open");
+    }
+    document.addEventListener("click", function (e) { if (claimPop && !e.target.closest(".claim-badge")) claimPop.classList.remove("open"); });
+
+    // ---- AJAX: saves update the page in place (no full refresh) ----
+    function swapMain(html, scrollY, openId) {
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      var nm = doc.querySelector(".main"), cm = document.querySelector(".main");
+      if (!nm || !cm) { window.location.reload(); return; }
+      cm.innerHTML = nm.innerHTML;
+      initKhatta();
+      closeManage();   // saves close the modal (content is refreshed underneath)
+      var fl = doc.querySelector("[data-flash]");
+      if (fl) { document.body.appendChild(fl); setTimeout(function () { fl.classList.add("flash-hide"); }, 2600); setTimeout(function () { fl.remove(); }, 3100); }
+      window.scrollTo(0, scrollY || 0);
+    }
+    document.addEventListener("submit", function (e) {
+      var form = e.target.closest("form");
+      if (!form || (form.getAttribute("action") || "").indexOf("khatta_embs") < 0) return;
+      e.preventDefault();
+      var scrollY = window.scrollY;
+      var isGet = (form.getAttribute("method") || "post").toLowerCase() === "get";
+      var fd = new FormData(form);
+      if (e.submitter && e.submitter.name) fd.append(e.submitter.name, e.submitter.value);
+
+      if (isGet) {   // Filters → update content + URL in place, no reload / no jump
+        var qs = new URLSearchParams(fd).toString();
+        var url = form.getAttribute("action") + (qs ? "?" + qs : "");
+        fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+          .then(function (r) { return r.text(); })
+          .then(function (h) { swapMain(h, scrollY, null); if (window.history) window.history.replaceState({}, "", url); })
+          .catch(function () { window.location.assign(url); });
+        return;
+      }
+
+      var msg = (e.submitter && (e.submitter.getAttribute("data-turbo-confirm") || e.submitter.getAttribute("data-confirm"))) ||
+                form.getAttribute("data-turbo-confirm") || form.getAttribute("data-confirm");
+      if (msg && !window.confirm(msg)) return;
+      var openEl = document.querySelector(".ke-detail:not(.hidden)");
+      var openId = openEl ? openEl.id : null;
+      if (keModal) keModal.classList.remove("open");
+      fetch(form.getAttribute("action"), { method: "post", body: fd, headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (r) { return r.text(); })
+        .then(function (h) { swapMain(h, scrollY, openId); })
+        .catch(function () { window.location.reload(); });
+    });
+
+    initKhatta();
+
+    // Claim-by-colour grid: add / remove colour rows (colours are fixed per dispatch row)
+    document.addEventListener("click", function (e) {
+      var add = e.target.closest(".claim-add");
+      if (add) {
+        var rows = add.closest("form").querySelector(".claim-rows");
+        if (rows && rows.querySelector(".claim-row")) {
+          var clone = rows.querySelector(".claim-row").cloneNode(true);
+          clone.querySelectorAll("select, input").forEach(function (el) { el.value = ""; });
+          rows.appendChild(clone);
+        }
+        return;
+      }
+      var del = e.target.closest(".claim-row-del");
+      if (del) { var row = del.closest(".claim-row"); if (row) row.remove(); }
+    });
+  })();
+</script>

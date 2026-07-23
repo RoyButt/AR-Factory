@@ -1,0 +1,19 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+  <div class="main">
+    <div class="top">
+      <h1><%= @party.name %></h1>
+      <div class="row-actions">
+        <%= link_to "← All parties", cutwork_parties_path, class: "btn-soft" %>
+        <% unless current_user.view_only? %><%= link_to "✎ Edit", edit_cutwork_party_path(@party), class: "btn-primary" %><% end %>
+      </div>
+    </div>
+    <div class="panel" style="padding:20px">
+      <% if @party.image.attached? %><div class="cc-image" style="margin-bottom:16px"><%= image_tag rails_blob_path(@party.image) %></div><% end %>
+      <p><b>Contact:</b> <%= @party.contact.presence || "—" %></p>
+      <p><b>Email:</b> <%= @party.email.presence || "—" %></p>
+      <p><b>Address:</b> <%= [@party.address, @party.city].reject(&:blank?).join(", ").presence || "—" %></p>
+      <p><b>Notes:</b> <%= @party.notes.presence || "—" %></p>
+    </div>
+  </div>
+</div>

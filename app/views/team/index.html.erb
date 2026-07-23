@@ -1,0 +1,88 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>Team</h1>
+        <p class="page-sub">Manage who can access the system and what each member can see.</p>
+      </div>
+      <%= link_to new_team_path, class: "btn-primary" do %>
+        <span style="font-size:16px;line-height:0">＋</span>&nbsp; Add Member
+      <% end %>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="k">Total Members</div><div class="v"><%= @users.size %></div></div>
+      <div class="card"><div class="k">Super Admins</div><div class="v"><%= @users.count(&:superadmin?) %></div></div>
+      <div class="card"><div class="k">Admins</div><div class="v"><%= @users.count(&:admin?) %></div></div>
+      <div class="card"><div class="k">Operators</div><div class="v"><%= @users.count(&:operator?) %></div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Members</h2>
+      <table class="utable">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Role</th>
+            <th>Access Mode</th>
+            <th>Visible Sections</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @users.each do |u| %>
+            <tr>
+              <td>
+                <div class="member">
+                  <span class="uavatar <%= u.role %>"><%= u.name.first.upcase %></span>
+                  <div class="member-meta">
+                    <span class="member-name">
+                      <%= u.name %>
+                      <% if u == current_user %><span class="you-tag">You</span><% end %>
+                    </span>
+                    <span class="member-email"><%= u.email %></span>
+                  </div>
+                </div>
+              </td>
+              <td><span class="role-badge <%= u.role %>"><%= u.display_role %></span></td>
+              <td>
+                <% if u.view_only? %>
+                  <span class="mode-pill view">View only</span>
+                <% else %>
+                  <span class="mode-pill full">Full access</span>
+                <% end %>
+              </td>
+              <td>
+                <% if u.superadmin? %>
+                  <span class="chip all">All sections</span>
+                <% else %>
+                  <div class="access-pills">
+                    <% u.sections.each do |s| %>
+                      <% if (lbl = User::SECTIONS[s]&.first) %><span class="chip"><%= lbl %></span><% end %>
+                    <% end %>
+                    <% if u.sections.empty? %><span class="muted">None</span><% end %>
+                  </div>
+                <% end %>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <%= link_to edit_team_path(u), class: "icon-btn edit", title: "Edit" do %>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <% end %>
+                  <% unless u == current_user %>
+                    <%= button_to team_path(u), method: :delete, class: "icon-btn del", title: "Delete",
+                          form: { style: "display:inline" }, data: { turbo_confirm: "Remove #{u.name} from the team?" } do %>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <% end %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

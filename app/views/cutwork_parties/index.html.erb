@@ -1,0 +1,52 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>Cutwork Party</h1>
+        <p class="page-sub">Cutwork parties / persons · <%= @parties.size %> total</p>
+      </div>
+      <% unless current_user.view_only? %>
+        <%= link_to "＋ New Party", new_cutwork_party_path, class: "btn-primary" %>
+      <% end %>
+    </div>
+
+    <% if @parties.empty? %>
+      <div class="panel"><p class="muted" style="padding:24px;text-align:center">No cutwork parties yet.<% unless current_user.view_only? %> Click “New Party” to add one.<% end %></p></div>
+    <% else %>
+      <div class="party-grid">
+        <% @parties.each do |p| %>
+          <div class="party-card">
+            <div class="party-top">
+              <div class="party-avatar">
+                <% if p.image.attached? %>
+                  <%= link_to rails_blob_path(p.image), target: "_blank" do %><%= image_tag rails_blob_path(p.image), alt: p.name %><% end %>
+                <% else %>
+                  <span class="party-initials"><%= p.name.to_s.first(2).upcase %></span>
+                <% end %>
+              </div>
+              <div class="party-head">
+                <h3><%= p.name %></h3>
+                <% if p.city.present? %><div class="party-sub">📍 <%= p.city %></div><% end %>
+              </div>
+            </div>
+            <div class="party-info">
+              <% if p.contact.present? %><div class="party-line"><span class="pl-ic">📞</span><%= p.contact %></div><% end %>
+              <% if p.email.present? %><div class="party-line"><span class="pl-ic">✉</span><span class="pl-val"><%= p.email %></span></div><% end %>
+              <% if p.address.present? %><div class="party-line"><span class="pl-ic">🏠</span><%= p.address %></div><% end %>
+              <% if p.notes.present? %><div class="party-line muted"><span class="pl-ic">📝</span><%= truncate(p.notes, length: 90) %></div><% end %>
+            </div>
+            <% unless current_user.view_only? %>
+              <div class="party-actions">
+                <%= link_to "Edit", edit_cutwork_party_path(p), class: "btn-sm edit" %>
+                <%= button_to "Delete", cutwork_party_path(p), method: :delete, class: "btn-sm del",
+                      form: { style: "display:inline" }, data: { turbo_confirm: "Delete #{p.name}?" } %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

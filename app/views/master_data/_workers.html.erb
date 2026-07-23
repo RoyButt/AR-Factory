@@ -1,0 +1,28 @@
+<div class="panel-head"><h2>Workers</h2><span class="muted">Stitching karigars &amp; piece rates — feeds payroll</span></div>
+<div class="erow-table">
+  <div class="erow erow-head worker-row"><span>Name</span><span>Piece Rate (Rs)</span><span>Active</span><span></span></div>
+
+  <% @workers.each do |w| %>
+    <div class="erow worker-row searchable" data-search="<%= w.name %>">
+      <%= form_with model: w, url: worker_path(w), method: :patch, local: true, class: "erow-form worker-form" do |f| %>
+        <%= f.text_field :name, disabled: current_user.view_only? %>
+        <%= f.number_field :piece_rate, step: 0.01, disabled: current_user.view_only? %>
+        <label class="active-toggle"><%= f.check_box :active, disabled: current_user.view_only? %> Active</label>
+        <% unless current_user.view_only? %><%= f.submit "Save", class: "btn-sm edit" %><% end %>
+      <% end %>
+      <% unless current_user.view_only? %>
+        <%= button_to "✕", worker_path(w), method: :delete, class: "btn-icon-del",
+              form: { style: "display:inline" }, data: { turbo_confirm: "Remove #{w.name}?" } %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% unless current_user.view_only? %>
+    <%= form_with model: Worker.new, url: workers_path, method: :post, local: true, class: "erow erow-new worker-row" do |f| %>
+      <%= f.text_field :name, placeholder: "Worker name" %>
+      <%= f.number_field :piece_rate, step: 0.01, placeholder: "Rate", value: 120 %>
+      <label class="active-toggle"><%= f.check_box :active, checked: true %> Active</label>
+      <%= f.submit "+ Add", class: "btn-primary btn-sm" %>
+    <% end %>
+  <% end %>
+</div>

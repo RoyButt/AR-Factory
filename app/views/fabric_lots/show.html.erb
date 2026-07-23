@@ -1,0 +1,512 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>Fabric Lot — Laat #<%= @lot.laat_number %></h1>
+        <p class="page-sub"><%= @lot.line_type %> · <%= @lot.lot_date&.strftime("%d %b %Y") %> · <span class="muted">edit inline, values calculate live</span></p>
+      </div>
+      <div class="row-actions">
+        <%= link_to "← All lots", fabric_lots_path, class: "btn-soft" %>
+        <% unless current_user.view_only? %><%= link_to "＋ Extra Cloth", edit_fabric_lot_path(@lot), class: "btn-soft" %><% end %>
+      </div>
+    </div>
+
+    <% colours = @lot.fabric_lot_colors.to_a %>
+    <% lines = @lot.fabric_lot_lines.to_a %>
+    <% span = 3 + colours.size %>
+    <% ro = current_user.view_only? %>
+
+    <% if @lot.completed_dispatch_pairs.any? %>
+      <div class="sheet-banner sheet-locked">🔒 Rows whose contractor has <b>fully returned</b> are locked (🔒). The rest of the sheet stays editable.</div>
+    <% end %>
+
+    <%# ---- Draft / Finalized banner ---- %>
+    <% if @lot.finalized? %>
+      <div class="sheet-banner sheet-final">✔ Finalized: <b><%= @lot.finalized_pattern.name %></b> — this is the official sheet <span class="muted">(still editable)</span>.</div>
+    <% else %>
+      <div class="sheet-banner sheet-draft">⚠ This sheet is a <b>DRAFT</b> — save patterns as you go, then <b>Finalize</b> one to make it official.</div>
+    <% end %>
+
+    <%# ---- Saved pattern tabs ---- %>
+    <div class="pattern-bar">
+      <span class="pattern-bar-lbl">Patterns:</span>
+      <% @lot.lot_patterns.each do |p| %>
+        <div class="pattern-tab <%= 'is-final' if p.finalized? %>">
+          <%= button_to (p.finalized? ? "★ #{p.name}" : p.name), apply_pattern_fabric_lot_path(@lot, pattern_id: p.id),
+                method: :post, class: "ptab-load", form: { style: "display:inline" },
+                data: { turbo_confirm: "Load “#{p.name}” into the sheet? This replaces the current layout." } %>
+          <% unless ro %>
+            <% unless p.finalized? %>
+              <%= button_to "Finalize", finalize_pattern_fabric_lot_path(@lot, pattern_id: p.id), method: :post,
+                    class: "ptab-final", form: { style: "display:inline" },
+                    data: { turbo_confirm: "Finalize “#{p.name}” as the official sheet?" } %>
+            <% end %>
+            <%= button_to "✕", remove_pattern_fabric_lot_path(@lot, pattern_id: p.id), method: :delete,
+                  class: "ptab-x", form: { style: "display:inline" }, title: "Delete pattern",
+                  data: { turbo_confirm: "Delete pattern “#{p.name}”?" } %>
+          <% end %>
+        </div>
+      <% end %>
+      <% if @lot.lot_patterns.empty? %><span class="muted" style="font-size:12px">none yet</span><% end %>
+      <% unless ro %>
+        <button type="button" id="savePatternBtn" class="ptab-save">＋ Save current as pattern</button>
+      <% end %>
+    </div>
+
+    <%= form_with model: @lot, url: fabric_lot_path(@lot), method: :patch, local: true, html: { id: "matrixForm" } do |f| %>
+      <input type="hidden" name="save_pattern_name" id="savePatternName">
+      <div class="panel">
+        <div class="mx-toolbar">
+          <label class="mx-toggle mx-toggle-amber"><input type="checkbox" id="showEmbBackup"> Show EMB / Back Up total</label>
+          <label class="mx-toggle"><input type="checkbox" id="showCombined"> Show combined total (EMB + Back Up)</label>
+          <button type="button" class="btn-soft" id="gatePassBtn" title="Print a gate pass for the ticked contractors (none ticked = all)">🚪 Produce Gate Pass</button>
+          <% unless ro %>
+            <span class="mx-toolbar-actions">
+              <button type="submit" name="add" value="colour" class="btn-soft">＋ Add colour</button>
+              <button type="submit" name="add" value="line" class="btn-soft">＋ Add Contractor</button>
+            </span>
+          <% end %>
+        </div>
+        <div class="table-scroll">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th class="mx-head">#<%= f.text_field :laat_number, class: "mx-inp", disabled: ro, style: "width:64px;display:inline-block" %></th>
+                <th class="mx-head"><%= f.date_field :lot_date, class: "mx-inp", disabled: ro %></th>
+                <th class="mx-head">Product Name</th>
+                <% colours.each do |c| %>
+                  <th class="mx-colour" id="mxColHead<%= c.id %>" style="background:<%= c.swatch %>">
+                    <% unless ro %><button type="button" tabindex="-1" class="mx-col-remove" data-cid="<%= c.id %>" title="Remove colour">✕</button><% end %>
+                    <div class="mx-colour-edit">
+                      <input type="color" tabindex="-1" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][hex]" value="<%= c.swatch %>" class="mx-colour-hex" data-cid="<%= c.id %>" title="Pick any colour" <%= "disabled" if ro %>>
+                      <input type="text" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][name]" value="<%= c.name %>" class="mx-inp mx-colour-name" placeholder="Name" <%= "disabled" if ro %>>
+                    </div>
+                    <input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][id]" value="<%= c.id %>">
+                    <input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][wastage]" value="<%= c.wastage %>" class="mx-wast" data-cid="<%= c.id %>">
+                    <% unless ro %><input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][_destroy]" value="0" class="mx-col-destroy" data-cid="<%= c.id %>"><% end %>
+                  </th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mx-lbl">Total Received Gazana</td>
+                <td class="mx-val"><b id="lotTotalSuit">–</b></td>
+                <td class="mx-metric">Received Gazana</td>
+                <% colours.each do |c| %>
+                  <td class="mx-num">
+                    <%= number_field_tag "fabric_lot[fabric_lot_colors_attributes][#{c.id}][received_gazana]", c.received_gazana, step: 0.01, class: "mx-inp mx-recv", data: { cid: c.id }, disabled: ro %>
+                  </td>
+                <% end %>
+              </tr>
+              <tr>
+                <td class="mx-lbl">Total Remaining Gazana</td>
+                <td class="mx-val"><b id="lotRemainSuit">–</b></td>
+                <td class="mx-metric">Remaining Gazana</td>
+                <% colours.each do |c| %>
+                  <td class="mx-num mx-rem" data-remgaz="<%= c.id %>">
+                    <span class="mx-rem-val">–</span>
+                    <% if c.adjustments_total > 0 %><button type="button" tabindex="-1" class="adj-badge" data-cid="<%= c.id %>" title="Extra cloth issued — click to see why">🔻</button><% end %>
+                  </td>
+                <% end %>
+              </tr>
+              <tr>
+                <td class="mx-lbl">Total Suits</td>
+                <td class="mx-val"><b id="lotTotalSuits">–</b></td>
+                <td class="mx-metric">Remaining Suit</td>
+                <% colours.each do |c| %><td class="mx-num mx-remsuit" data-remsuit="<%= c.id %>">–</td><% end %>
+              </tr>
+              <tr>
+                <td class="mx-lbl">Laat Average</td>
+                <td class="mx-val"><b id="lotLaat">–</b></td>
+                <td class="mx-metric" colspan="<%= 1 + colours.size %>" style="text-align:left"></td>
+              </tr>
+              <tr class="mx-sep"><td colspan="<%= span %>"></td></tr>
+
+              <% if lines.empty? %>
+                <tr><td colspan="<%= span %>" class="muted" style="text-align:center;padding:20px">No design lines yet — add them on the “Rows / colours” page.</td></tr>
+              <% end %>
+              <% groups = {}; order = [] %>
+              <% lines.each do |l| %>
+                <% key = l.contractor.to_s %>
+                <% order << key unless groups.key?(key) %>
+                <% (groups[key] ||= []) << l %>
+              <% end %>
+              <% runs = order.map { |k| { contractor: groups[k].first.contractor, lines: groups[k] } } %>
+              <% sr = 0 %>
+              <% runs.each_with_index do |run, ri| %>
+                <% run[:lines].each do |l| %>
+                  <% sr += 1 %>
+                  <% cur_code = l.design_variant&.design&.code %>
+                  <% cur_head = l.heads %>
+                  <% llocked = @lot.line_locked?(l) %>
+                  <% l_ro = ro || llocked %>
+                  <tr class="mx-line mx-emb-row <%= 'mx-line-locked' if llocked %>" data-line="<%= l.id %>" data-run="<%= ri %>">
+                    <td rowspan="2" class="mx-sr">
+                      <% if run[:contractor].present? %>
+                        <input type="checkbox" class="mx-pick" data-run="<%= ri %>" data-contractor="<%= run[:contractor] %>" title="Tick contractors for the gate pass / Back Up total" tabindex="-1">
+                      <% end %>
+                      <span class="mx-sr-n"><%= sr %></span>
+                      <% if llocked %>
+                        <span class="mx-lock" title="Locked — this contractor's suits are fully returned">🔒</span>
+                      <% elsif !ro %>
+                        <button type="button" tabindex="-1" class="mx-line-remove" title="Remove design line">✕</button>
+                        <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][<%= l.id %>][_destroy]" value="0" class="mx-line-destroy">
+                      <% end %>
+                    </td>
+                    <td rowspan="2" class="mx-contractor">
+                      <% party_opts = (@emb_parties + [l.contractor]).compact.reject(&:blank?).uniq %>
+                      <select class="mx-inp mx-contractor-sel" name="fabric_lot[fabric_lot_lines_attributes][<%= l.id %>][contractor]" <%= "disabled" if l_ro %>>
+                        <option value="" disabled <%= "selected" if l.contractor.blank? %>>Party…</option>
+                        <% party_opts.each do |pn| %><option value="<%= pn %>" <%= "selected" if l.contractor == pn %>><%= pn %></option><% end %>
+                      </select>
+                      <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][<%= l.id %>][id]" value="<%= l.id %>">
+                      <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][<%= l.id %>][design_variant_id]" value="<%= l.design_variant_id %>" class="mx-variant" data-line="<%= l.id %>">
+                      <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][<%= l.id %>][head_size]" value="<%= l.head_size %>" class="mx-headsize" data-line="<%= l.id %>">
+                    </td>
+                    <td rowspan="2" class="mx-design">
+                      <div class="mx-design-pick">
+                        <select class="mx-inp mx-code" data-line="<%= l.id %>" <%= "disabled" if l_ro %>>
+                          <option value="" disabled <%= "selected" if cur_code.blank? %>>Design…</option>
+                          <% @design_codes.each do |code| %><option value="<%= code %>" <%= "selected" if cur_code == code %>><%= code %></option><% end %>
+                        </select>
+                        <select class="mx-inp mx-linehead" data-line="<%= l.id %>" title="Machine head" <%= "disabled" if l_ro %>>
+                          <option value="" disabled <%= "selected" unless cur_head.positive? %>>Head…</option>
+                          <% @head_sizes.each do |sz| %><option value="<%= sz %>" <%= "selected" if cur_head.positive? && cur_head.to_s == sz %>><%= sz %></option><% end %>
+                        </select>
+                      </div>
+                    </td>
+                    <% colours.each do |c| %>
+                      <% uid = l.usage_for(c.id)&.id %>
+                      <% fac = l.factor_for(c.id) %>
+                      <% base = "fabric_lot[fabric_lot_lines_attributes][#{l.id}][line_color_usages_attributes][#{c.id}]" %>
+                      <td class="mx-num mx-emb">
+                        <div class="mx-cell-fac">
+                          <span class="mx-emb-val" data-line="<%= l.id %>" data-cid="<%= c.id %>" data-factor="<%= fac %>"><%= l.emb_for(c.id) %></span>
+                          <% unless l_ro %>
+                            <select class="mx-factor" data-line="<%= l.id %>" data-cid="<%= c.id %>" name="<%= base %>[factor]" title="Full = calculated · Half = ÷2 · 0 = none">
+                              <option value="1" <%= "selected" if fac == 1.0 %>>Full</option>
+                              <option value="0.5" <%= "selected" if fac == 0.5 %>>Half</option>
+                              <option value="0" <%= "selected" if fac == 0.0 %>>0</option>
+                            </select>
+                          <% end %>
+                        </div>
+                        <% unless l_ro %>
+                          <input type="hidden" name="<%= base %>[fabric_lot_color_id]" value="<%= c.id %>">
+                          <% if uid %><input type="hidden" name="<%= base %>[id]" value="<%= uid %>"><% end %>
+                          <input type="hidden" name="<%= base %>[backup_factor]" value="<%= fac %>" class="mx-bkfac-hidden" data-line="<%= l.id %>" data-cid="<%= c.id %>">
+                        <% end %>
+                      </td>
+                    <% end %>
+                  </tr>
+                  <tr class="mx-line mx-line-b mx-backup-row <%= 'mx-line-locked' if llocked %>">
+                    <% colours.each do |c| %>
+                      <td class="mx-num mx-backup">
+                        <div class="mx-cell-fac">
+                          <span class="mx-backup-val" data-line="<%= l.id %>" data-cid="<%= c.id %>" data-factor="<%= l.factor_for(c.id) %>"><%= (l.backup_consumption * l.factor_for(c.id)).round(2) %></span>
+                        </div>
+                      </td>
+                    <% end %>
+                  </tr>
+                <% end %>
+                <tr class="mx-total-row mx-total-emb-row" data-total-run="<%= ri %>">
+                  <td colspan="3" rowspan="2" class="mx-total-lbl"><b><%= run[:contractor].presence || "—" %></b> — cloth to send<div class="mx-total-cap">EMB (top) &amp; Back&nbsp;Up (bottom), per colour</div></td>
+                  <% colours.each do |c| %><td class="mx-num mx-total-emb" data-run="<%= ri %>" data-cid="<%= c.id %>">—</td><% end %>
+                </tr>
+                <tr class="mx-total-row mx-total-backup-row">
+                  <% colours.each do |c| %><td class="mx-num mx-total-backup" data-run="<%= ri %>" data-cid="<%= c.id %>">—</td><% end %>
+                </tr>
+                <tr class="mx-total-row mx-combined-row" style="display:none">
+                  <td colspan="3" class="mx-total-lbl mx-combined-lbl"><b><%= run[:contractor].presence || "—" %></b> — Total cloth (EMB + Back Up)</td>
+                  <% colours.each do |c| %><td class="mx-num mx-combined" data-run="<%= ri %>" data-cid="<%= c.id %>">—</td><% end %>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div id="mxSelSummary" class="mx-sel-summary" style="display:none"></div>
+        <% unless ro %>
+          <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+            <%= f.submit "Save changes", class: "btn-primary" %>
+            <span class="muted">Add / remove (top) saves your edits first. ✕ on a colour or line removes it.</span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const DESIGN_RECIPE = <%= (@design_recipe || {}).to_json.html_safe %>;   // code -> {variant_id, repeats, components}
+    const EMB_FACTOR = <%= @emb_factor || 0.337 %>, ROUND_STEP = <%= @round_step || 0.5 %>, BACKUP_DIV = <%= @backup_div || 39 %>;
+    const DIV = <%= Setting.value_for("gaz_per_suit_issued", 3.5).to_f %>;
+    // Extra cloth issued to contractors → subtracted from that colour's Remaining Gazana
+    const ADJ = <%= @lot.fabric_lot_colors.each_with_object({}) { |c, h| t = c.adjustments_total; h[c.id] = t if t > 0 }.to_json.html_safe %>;
+    const ADJ_DETAILS = <%= @lot.fabric_lot_colors.each_with_object({}) { |c, h| items = c.lot_adjustments.map { |a| { contractor: a.contractor, design: a.design, gazana: a.gazana.to_f, note: a.note, date: a.date&.strftime("%d %b %Y") } }; h[c.id] = items if items.any? }.to_json.html_safe %>;
+    const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+    const fmt = (v) => (Number.isInteger(v) ? v.toString() : (Math.round(v * 100) / 100).toString());
+    const suit = (gaz) => (DIV > 0 ? Math.round(gaz / DIV) : 0);
+    const ceilTo = (v) => (!ROUND_STEP ? v : Math.ceil(Number((v / ROUND_STEP).toFixed(9))) * ROUND_STEP);
+    function embBackup(code, head) {
+      const r = DESIGN_RECIPE[code];
+      if (!r || !head) return { none: true, emb: 0, backup: 0, variant: "" };
+      const emb = ceilTo(EMB_FACTOR * head * num(r.repeats));
+      const backup = BACKUP_DIV ? ceilTo((num(r.components) / BACKUP_DIV) * head) : 0;
+      return { none: false, emb: emb, backup: backup, variant: r.variant_id };
+    }
+
+    const round2 = (v) => Math.round(v * 100) / 100;
+    let LAST_RUNTOTALS = {};   // run -> cid -> {emb, backup}, refreshed each recompute()
+
+    function recompute() {
+      const consByCid = {};       // colour id -> total consumed
+      const runTotals = {};       // run -> cid -> {emb, backup}
+      document.querySelectorAll("tr.mx-emb-row").forEach((erow) => {
+        const code = erow.querySelector(".mx-code") && erow.querySelector(".mx-code").value;
+        const head = num(erow.querySelector(".mx-linehead") && erow.querySelector(".mx-linehead").value);
+        const r = embBackup(code, head);   // full computed EMB / Back Up for this line
+        const vidEl = erow.querySelector(".mx-variant"), headEl = erow.querySelector(".mx-headsize");
+        if (vidEl) vidEl.value = r.none ? "" : r.variant;
+        if (headEl) headEl.value = head ? head : "";
+        const run = erow.dataset.run;
+        runTotals[run] = runTotals[run] || {};
+        const brow = erow.nextElementSibling;
+        erow.querySelectorAll(".mx-emb-val").forEach((span) => {
+          const cid = span.dataset.cid;
+          // ONE factor per pair drives BOTH the EMB and Back Up values
+          const embFacEl = erow.querySelector('.mx-factor[data-cid="' + cid + '"]');
+          const embFac = embFacEl ? num(embFacEl.value) : num(span.dataset.factor || 1);
+          const bkHidden = erow.querySelector('.mx-bkfac-hidden[data-cid="' + cid + '"]');
+          if (bkHidden) bkHidden.value = embFacEl ? embFacEl.value : embFac;   // keep saved backup_factor in sync
+          const embVal = round2(r.emb * embFac);
+          span.textContent = fmt(embVal);
+          const bspan = brow && brow.querySelector('.mx-backup-val[data-cid="' + cid + '"]');
+          const backupVal = round2(r.backup * embFac);
+          if (bspan) bspan.textContent = fmt(backupVal);
+          consByCid[cid] = (consByCid[cid] || 0) + embVal + backupVal;
+          (runTotals[run][cid] = runTotals[run][cid] || { emb: 0, backup: 0 }).emb += embVal;
+          runTotals[run][cid].backup += backupVal;
+        });
+      });
+      // per-contractor totals, now per colour
+      Object.keys(runTotals).forEach((run) => {
+        Object.keys(runTotals[run]).forEach((cid) => {
+          const t = runTotals[run][cid];
+          document.querySelectorAll('.mx-total-emb[data-run="' + run + '"][data-cid="' + cid + '"]').forEach((c) => { c.textContent = fmt(t.emb); });
+          document.querySelectorAll('.mx-total-backup[data-run="' + run + '"][data-cid="' + cid + '"]').forEach((c) => { c.textContent = fmt(t.backup); });
+          document.querySelectorAll('.mx-combined[data-run="' + run + '"][data-cid="' + cid + '"]').forEach((c) => { c.textContent = fmt(t.emb + t.backup); });
+        });
+      });
+      // per-colour Remaining Gazana / Suit + lot totals
+      let totRecv = 0, totCons = 0, totRem = 0;
+      document.querySelectorAll(".mx-recv").forEach((inp) => {
+        const cid = inp.dataset.cid;
+        const wastEl = document.querySelector('.mx-wast[data-cid="' + cid + '"]');
+        const recv = num(inp.value);
+        const wast = wastEl ? num(wastEl.value) : 0;
+        const cons = consByCid[cid] || 0;
+        const adj = ADJ[cid] || 0;                 // extra cloth issued to a contractor for this colour
+        const rem = recv - cons - wast - adj;
+        totRecv += recv; totCons += cons; totRem += rem;
+        const gEl = document.querySelector('[data-remgaz="' + cid + '"]');
+        const sEl = document.querySelector('[data-remsuit="' + cid + '"]');
+        if (gEl) {
+          const valEl = gEl.querySelector(".mx-rem-val") || gEl;
+          valEl.textContent = fmt(rem);
+          gEl.classList.toggle("mx-neg", rem < 0);
+        }
+        if (sEl) { sEl.textContent = suit(rem); }
+      });
+      document.getElementById("lotTotalSuit").textContent = fmt(totRecv);   // Total Received Gazana
+      document.getElementById("lotRemainSuit").textContent = fmt(totRem);   // Total Remaining Gazana
+      // Total Suits = Σ over all contractor lines of (machine Head × number of colours)
+      var nColours = document.querySelectorAll(".mx-recv").length;
+      var headSum = 0;
+      document.querySelectorAll("tr.mx-emb-row").forEach(function (erow) {
+        if (erow.style.display === "none") return;
+        var hEl = erow.querySelector(".mx-linehead");
+        headSum += num(hEl && hEl.value);
+      });
+      var totalSuits = headSum * nColours;
+      document.getElementById("lotTotalSuits").textContent = totalSuits;
+      // Laat Average = Total Received Gazana ÷ Total Suits
+      var laat = totalSuits > 0 ? (totRecv / totalSuits) : 0;
+      document.getElementById("lotLaat").textContent = Math.round(laat * 1000) / 1000;
+      LAST_RUNTOTALS = runTotals;   // expose for the contractor Back Up summary
+      updateSelSummary();
+    }
+
+    // ---- contractor checkbox selection → live Back Up + combined total ----
+    function escHtml(s) { return (s || "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch])); }
+    function colourMeta() {
+      return Array.prototype.map.call(document.querySelectorAll(".mx-recv"), (inp) => {
+        const cid = inp.dataset.cid;
+        const th = document.getElementById("mxColHead" + cid);
+        const nameEl = th && th.querySelector(".mx-colour-name");
+        const hexEl = document.querySelector('.mx-colour-hex[data-cid="' + cid + '"]');
+        return { cid: cid, name: nameEl ? nameEl.value : "", hex: hexEl ? hexEl.value : "#cccccc" };
+      });
+    }
+    function checkedRuns() {
+      const s = new Set();
+      document.querySelectorAll(".mx-pick:checked").forEach((cb) => s.add(cb.dataset.run));
+      return Array.from(s);
+    }
+    function markSelectedRows() {
+      document.querySelectorAll("tr.mx-row-sel").forEach((r) => r.classList.remove("mx-row-sel"));
+      checkedRuns().forEach((run) => {
+        document.querySelectorAll('tr.mx-emb-row[data-run="' + run + '"]').forEach((er) => {
+          er.classList.add("mx-row-sel");
+          if (er.nextElementSibling) er.nextElementSibling.classList.add("mx-row-sel");
+        });
+      });
+    }
+    function updateSelSummary() {
+      const box = document.getElementById("mxSelSummary");
+      if (!box) return;
+      const runs = checkedRuns();
+      if (!runs.length) { box.style.display = "none"; box.innerHTML = ""; return; }
+      const cols = colourMeta();
+      const names = runs.map((run) => { const p = document.querySelector('.mx-pick[data-run="' + run + '"]'); return p ? (p.dataset.contractor || "—") : "—"; });
+      let backupGrand = 0, combinedGrand = 0;
+      const cells = cols.map((c) => {
+        let emb = 0, backup = 0;
+        runs.forEach((run) => { const t = (LAST_RUNTOTALS[run] || {})[c.cid] || { emb: 0, backup: 0 }; emb += t.emb; backup += t.backup; });
+        backupGrand += backup; combinedGrand += (emb + backup);
+        return { emb: emb, backup: backup };
+      });
+      const label = names.length === 1 ? names[0] : names.length + " contractors";
+      let h = '<div class="mx-sel-head">🧮 Selected: <b>' + escHtml(label) + "</b>";
+      h += '<span class="mx-sel-grand">Back Up total <b>' + fmt(round2(backupGrand)) + " m</b> · EMB + Back Up <b>" + fmt(round2(combinedGrand)) + " m</b></span></div>";
+      h += '<div class="table-scroll"><table class="mx-sel-table"><thead><tr><th>Cloth to send</th>';
+      cols.forEach((c) => { h += '<th><span class="mx-sel-sw" style="background:' + c.hex + '"></span>' + escHtml(c.name || "—") + "</th>"; });
+      h += "<th>Total</th></tr></thead><tbody>";
+      h += '<tr class="mx-sel-bk"><td>Back Up</td>';
+      cells.forEach((t) => { h += "<td>" + fmt(round2(t.backup)) + "</td>"; });
+      h += "<td><b>" + fmt(round2(backupGrand)) + "</b></td></tr>";
+      h += '<tr class="mx-sel-cb"><td>EMB + Back Up</td>';
+      cells.forEach((t) => { h += "<td>" + fmt(round2(t.emb + t.backup)) + "</td>"; });
+      h += "<td><b>" + fmt(round2(combinedGrand)) + "</b></td></tr>";
+      h += "</tbody></table></div>";
+      box.innerHTML = h;
+      box.style.display = "";
+    }
+    // Multi-select: ticking any row toggles all of that contractor's rows; other contractors stay.
+    document.addEventListener("change", (e) => {
+      const box = e.target.closest(".mx-pick");
+      if (!box) return;
+      const run = box.dataset.run, checked = box.checked;
+      document.querySelectorAll('.mx-pick[data-run="' + run + '"]').forEach((cb) => { cb.checked = checked; });
+      markSelectedRows();
+      updateSelSummary();
+    });
+    // Gate pass: checked contractors → print page; none checked = all contractors.
+    var gpBtn = document.getElementById("gatePassBtn");
+    if (gpBtn) gpBtn.addEventListener("click", function () {
+      const uniq = Array.from(new Set(Array.prototype.map.call(document.querySelectorAll(".mx-pick:checked"), (cb) => cb.dataset.contractor)));
+      let url = "/fabric_lots/<%= @lot.id %>/gate_pass";
+      if (uniq.length) url += "?" + uniq.map((c) => "contractors[]=" + encodeURIComponent(c)).join("&");
+      window.open(url, "_blank");
+    });
+
+    // remove a colour or design line: mark _destroy, save & reload
+    function submitMatrix() { const f = document.getElementById("matrixForm"); if (f.requestSubmit) f.requestSubmit(); else f.submit(); }
+    document.addEventListener("click", (e) => {
+      const cr = e.target.closest(".mx-col-remove");
+      if (cr) {
+        if (!confirm("Remove this colour?")) return;
+        const d = document.querySelector('.mx-col-destroy[data-cid="' + cr.dataset.cid + '"]');
+        if (d) d.value = "1";
+        submitMatrix(); return;
+      }
+      const lr = e.target.closest(".mx-line-remove");
+      if (lr) {
+        if (!confirm("Remove this design line?")) return;
+        const d = lr.parentNode.querySelector(".mx-line-destroy");
+        if (d) d.value = "1";
+        submitMatrix(); return;
+      }
+    });
+
+    // colour picker -> retint the header live (name stays whatever you type)
+    document.querySelectorAll(".mx-colour-hex").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const head = document.getElementById("mxColHead" + inp.dataset.cid);
+        if (head && inp.value) head.style.background = inp.value;
+      });
+    });
+
+    document.addEventListener("input", (e) => { if (e.target.closest("#matrixForm")) recompute(); });
+    document.addEventListener("change", (e) => { if (e.target.closest("#matrixForm")) recompute(); });
+
+    // checkboxes: toggle the EMB/Back Up total rows and the combined total row
+    function wireToggle(id, selector) {
+      const cb = document.getElementById(id);
+      if (!cb) return;
+      const t = () => document.querySelectorAll(selector).forEach((r) => { r.style.display = cb.checked ? "" : "none"; });
+      cb.addEventListener("change", t);
+      t();
+    }
+    wireToggle("showEmbBackup", ".mx-total-emb-row, .mx-total-backup-row");
+    wireToggle("showCombined", ".mx-combined-row");
+    recompute();
+
+    // Save current sheet (incl. live edits) as a named pattern
+    const saveBtn = document.getElementById("savePatternBtn");
+    if (saveBtn) {
+      saveBtn.addEventListener("click", () => {
+        const name = prompt("Name this pattern (e.g. Option A):", "Pattern " + (document.querySelectorAll(".pattern-tab").length + 1));
+        if (name === null) return;
+        document.getElementById("savePatternName").value = name.trim();
+        document.getElementById("matrixForm").requestSubmit();
+      });
+    }
+
+    // Keyboard flow: Enter in a text/number cell accepts and jumps to the next field (never submits mid-entry)
+    const mform = document.getElementById("matrixForm");
+    if (mform) {
+      mform.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        const t = e.target;
+        if (t.tagName === "INPUT" && ["submit", "button", "checkbox", "color"].indexOf(t.type) < 0) {
+          e.preventDefault();
+          const f = Array.prototype.slice
+            .call(mform.querySelectorAll('.ss-control, input:not([type=hidden]):not([tabindex="-1"])'))
+            .filter((el) => !el.disabled && el.offsetParent !== null);
+          const i = f.indexOf(t);
+          if (i >= 0 && f[i + 1]) f[i + 1].focus();
+        }
+      });
+    }
+
+    // "Extra cloth issued" popup — explains why a colour's Remaining Gazana is lower
+    const esc = (s) => (s || "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+    let adjPop;
+    function openAdjPop(badge) {
+      if (!adjPop) { adjPop = document.createElement("div"); adjPop.className = "adj-pop"; document.body.appendChild(adjPop); }
+      const items = ADJ_DETAILS[badge.dataset.cid] || [];
+      const total = items.reduce((s, i) => s + num(i.gazana), 0);
+      adjPop.innerHTML =
+        '<div class="adj-pop-h">🔻 Extra cloth issued — −' + fmt(total) + ' m</div>' +
+        items.map((i) =>
+          '<div class="adj-pop-row"><b>−' + fmt(num(i.gazana)) + ' m</b> · ' + esc(i.contractor || "—") +
+          (i.design ? ' · ' + esc(i.design) : "") +
+          (i.date ? ' · ' + esc(i.date) : "") +
+          (i.note ? '<div class="adj-pop-note">“' + esc(i.note) + '”</div>' : "") + '</div>'
+        ).join("");
+      const r = badge.getBoundingClientRect();
+      adjPop.style.left = Math.min(r.left, window.innerWidth - 300) + "px";
+      adjPop.style.top = (r.bottom + 6) + "px";
+      adjPop.classList.add("open");
+    }
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest(".adj-badge");
+      if (b) { e.stopPropagation(); openAdjPop(b); return; }
+      if (adjPop && !e.target.closest(".adj-pop")) adjPop.classList.remove("open");
+    });
+    window.addEventListener("scroll", () => { if (adjPop) adjPop.classList.remove("open"); }, true);
+  })();
+</script>

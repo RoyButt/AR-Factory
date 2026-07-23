@@ -1,0 +1,113 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <div>
+        <h1>Cost Card — <%= @card.code %></h1>
+        <p class="page-sub">Fabric rate Rs <%= @card.fabric_rate.to_i %> × <%= @card.fabric_multiplier.to_s.sub(/\.0$/, "") %> · <%= @card.card_date&.strftime("%d %b %Y") %></p>
+      </div>
+      <div class="row-actions">
+        <%= link_to "← All cards", cost_cards_path, class: "btn-soft" %>
+        <% unless current_user.view_only? %><%= link_to "✎ Edit", edit_cost_card_path(@card), class: "btn-primary" %><% end %>
+      </div>
+    </div>
+
+    <% if @card.picture.attached? %>
+      <div class="cc-image">
+        <%= link_to rails_blob_path(@card.picture), target: "_blank" do %>
+          <%= image_tag rails_blob_path(@card.picture), alt: @card.code %>
+        <% end %>
+        <span class="muted">Product image</span>
+      </div>
+    <% end %>
+
+    <div class="cc-grid">
+      <!-- Left: Price Calculation -->
+      <div class="panel">
+        <div class="panel-head"><h2>Price Calculation</h2></div>
+        <table class="utable cc-price">
+          <thead><tr><th>SR</th><th>Item</th><th class="num">Rate</th></tr></thead>
+          <tbody>
+            <% @card.price_lines.each_with_index do |(name, val), i| %>
+              <tr>
+                <td><%= i + 1 %></td>
+                <td><%= name %></td>
+                <td class="num"><%= rs(val) %></td>
+              </tr>
+            <% end %>
+            <tr class="tot"><td></td><td>Total</td><td class="num"><%= rs(@card.total) %></td></tr>
+            <tr class="tot final"><td></td><td>Final Rate</td><td class="num"><%= rs(@card.final_rate) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Right: EMB Rate (embroidery file costing) -->
+      <div class="panel">
+        <div class="panel-head"><h2>EMB Rate <span class="muted">ROUND((stitch ÷ 1000) × rate × head, 0) × reapts</span></h2></div>
+        <div class="table-scroll">
+          <table class="utable cc-emb">
+            <thead>
+              <tr><th>SR</th><th>File Name</th><th class="num">Stitch</th><th class="num">Head</th><th class="num">Reapts</th><th class="num">Rate</th><th class="num">Total</th></tr>
+            </thead>
+            <tbody>
+              <% @card.emb_files.each_with_index do |f, i| %>
+                <tr>
+                  <td><%= i + 1 %></td>
+                  <td><%= f.file_name %></td>
+                  <td class="num"><%= number_with_delimiter(f.stitch) %></td>
+                  <td class="num"><%= f.heads.to_s.sub(/\.0$/, "") %></td>
+                  <td class="num"><%= f.reapts.to_s.sub(/\.0$/, "") %></td>
+                  <td class="num"><%= f.rate.to_s.sub(/\.0$/, "") %></td>
+                  <td class="num"><b><%= f.line_total.to_i %></b></td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot>
+              <tr class="tot"><td colspan="6">EMB sub-total</td><td class="num"><%= @card.emb_subtotal.to_i %></td></tr>
+              <tr class="tot"><td colspan="6">EMB Cost</td><td class="num"><%= @card.emb_cost.to_i %></td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Party Pricing: same design, different rate per party -->
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Party Pricing</h2>
+        <span class="muted">Base final rate <b><%= rs(@card.final_rate) %></b> — set a different price per party</span>
+      </div>
+      <% if @card.party_prices.any? %>
+        <table class="utable">
+          <thead>
+            <tr><th>Party</th><th>Basis</th><th class="num">Adjustment</th><th class="num">Final Price</th><th class="num">vs Base</th><th>Note</th></tr>
+          </thead>
+          <tbody>
+            <% base = @card.final_rate %>
+            <% @card.party_prices.each do |p| %>
+              <tr>
+                <td><b><%= p.party_name %></b></td>
+                <td><span class="pill"><%= p.mode_label %></span></td>
+                <td class="num">
+                  <% if p.pricing_mode == "markup_pct" %><%= p.value.to_s.sub(/\.0$/, "") %>%
+                  <% elsif p.pricing_mode == "fixed" %>—
+                  <% else %><%= "%+d" % p.value %><% end %>
+                </td>
+                <td class="num"><b class="final-rate"><%= rs(p.final_price(base)) %></b></td>
+                <td class="num">
+                  <% d = p.diff(base) %>
+                  <span class="<%= d > 0 ? 'up' : (d < 0 ? 'down' : 'muted') %>"><%= d.zero? ? "—" : format("%+d", d) %></span>
+                </td>
+                <td class="muted"><%= p.note %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <div class="modlist"><p class="muted">No party-specific pricing yet.
+          <% unless current_user.view_only? %><%= link_to "Add on the Edit page →", edit_cost_card_path(@card) %><% end %></p></div>
+      <% end %>
+    </div>
+  </div>
+</div>

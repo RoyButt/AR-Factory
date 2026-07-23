@@ -1,0 +1,13 @@
+<div class="adj-row">
+  <%= af.select :contractor, options_for_select(emb_parties, af.object.contractor),
+        { include_blank: "Contractor…" }, class: "adj-contractor" %>
+  <%= af.select :design, options_for_select(design_codes, af.object.design),
+        { include_blank: "Design…" }, class: "adj-design" %>
+  <%= af.number_field :gazana, step: 0.01, min: 0, placeholder: "0", class: "adj-gazana no-spin" %>
+  <%= af.collection_select :fabric_lot_color_id, colours, :id, :name,
+        { include_blank: "Colour…" }, class: "adj-colour" %>
+  <%= af.text_field :note, placeholder: "Reason (e.g. destroyed cloth, sent +20 m)", class: "adj-note" %>
+  <%= af.date_field :date, value: (af.object.date || Date.current), class: "adj-date" %>
+  <button type="button" class="adj-remove" title="Remove">✕</button>
+  <%= af.hidden_field :_destroy, class: "adj-destroy" %>
+</div>

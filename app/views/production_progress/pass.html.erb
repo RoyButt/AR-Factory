@@ -1,0 +1,45 @@
+<div class="hp">
+  <div class="hp-actions" style="text-align:right;margin-bottom:10px">
+    <button onclick="window.print()" style="padding:8px 16px;border:1px solid #d5dde4;border-radius:8px;background:#22303f;color:#fff;font-weight:700;cursor:pointer">🖨 Print</button>
+    <a href="<%= handmade_progress_path %>" style="padding:8px 14px;border:1px solid #d5dde4;border-radius:8px;text-decoration:none;color:#37506b;margin-left:6px">← Back</a>
+  </div>
+  <div style="border:2px solid #22303f;border-radius:10px;padding:18px 22px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid #d5dde4;padding-bottom:12px;margin-bottom:14px">
+      <div><div style="font-size:20px;font-weight:800">🖐 Handmade Pass</div><div style="font-size:12px;color:#7c8a99">AR‑Unit Factory</div></div>
+      <div style="text-align:right"><div style="font-size:16px;font-weight:800;letter-spacing:1px"><%= @pass.token %></div><div style="font-size:12px;color:#7c8a99"><%= @pass.pass_on&.strftime("%d %b %Y") %></div></div>
+    </div>
+    <table style="width:100%;font-size:14px;border-collapse:collapse">
+      <tr><td style="padding:6px 0;color:#7c8a99;width:45%">Handmade Party</td><td style="padding:6px 0;font-weight:700"><%= @pass.handmade_party&.name || "—" %></td></tr>
+      <tr><td style="padding:6px 0;color:#7c8a99">Design</td><td style="padding:6px 0;font-weight:700"><%= @pass.design_code %><% if @pass.laat %> · Laat #<%= @pass.laat %><% end %></td></tr>
+      <% cs = @pass.color_suits %>
+      <tr><td style="padding:6px 0;color:#7c8a99;vertical-align:top">Suits by colour</td>
+        <td style="padding:6px 0">
+          <% if cs.any? %>
+            <% cs.each do |c| %>
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px">
+                <span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:<%= c[:hex] %>;border:1px solid #ccc"></span>
+                <span><%= c[:name].presence || "—" %></span>
+                <b style="margin-left:auto"><%= c[:net] %></b><% if c[:claimed] > 0 %> <span style="color:#b0392f;font-size:12px">(−<%= c[:claimed] %>)</span><% end %>
+              </div>
+            <% end %>
+            <div style="display:flex;justify-content:space-between;border-top:1px solid #e7edf3;margin-top:4px;padding-top:4px"><span style="color:#7c8a99">Total suits</span><b><%= cs.sum { |c| c[:net] } %></b></div>
+          <% else %>
+            <% @pass.colours.each do |c| %><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:<%= c[:hex] %>;border:1px solid #ccc;margin-right:3px;vertical-align:middle" title="<%= c[:name] %>"></span><% end %>
+            <div style="margin-top:4px;font-weight:700"><%= @pass.suits %> suits</div>
+          <% end %>
+        </td>
+      </tr>
+      <tr><td style="padding:6px 0;color:#7c8a99">Handwork rate (cost card)</td><td style="padding:6px 0"><%= rs(@pass.rate) %></td></tr>
+      <tr><td style="padding:6px 0;color:#7c8a99">Adjustment</td><td style="padding:6px 0"><%= @pass.adjustment.to_f >= 0 ? "+" : "" %><%= rs(@pass.adjustment) %></td></tr>
+      <tr><td style="padding:6px 0;color:#7c8a99">Rate / suit</td><td style="padding:6px 0;font-weight:700"><%= rs(@pass.effective_rate) %></td></tr>
+      <% if @pass.notes.present? %><tr><td style="padding:6px 0;color:#7c8a99">Notes</td><td style="padding:6px 0"><%= @pass.notes %></td></tr><% end %>
+    </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid #22303f;margin-top:12px;padding-top:12px">
+      <span style="font-size:14px;color:#7c8a99">Total (<%= @pass.suits %> × <%= rs(@pass.effective_rate) %>)</span>
+      <span style="font-size:22px;font-weight:800"><%= rs(@pass.amount) %></span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:28px;font-size:12px;color:#7c8a99">
+      <span>_______________<br>Issued by</span><span style="text-align:right">_______________<br>Received by</span>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,75 @@
+<div class="wrap">
+  <%= render "shared/sidebar" %>
+
+  <div class="main">
+    <div class="top">
+      <h1>Cost Cards — Design Embroidery Cost</h1>
+      <% unless current_user.view_only? %>
+        <%= link_to "＋ New Cost Card", new_cost_card_path, class: "btn-primary" %>
+      <% end %>
+    </div>
+
+    <div class="panel">
+      <div class="md-search-bar">
+        <span class="md-search-ic">⌕</span>
+        <input type="text" id="mdSearch" class="md-search" placeholder="Search designs…">
+        <span class="md-search-count" id="mdSearchCount"></span>
+      </div>
+      <div class="tab-scroll">
+        <table class="utable">
+          <thead>
+            <tr>
+              <th>Picture</th><th>Design</th><th class="num" data-off>Fabric</th><th class="num" data-off>EMB Cost</th>
+              <th class="num" data-off>CMT</th><th class="num" data-off>CM</th><th class="num" data-off>Lass</th>
+              <th class="num" data-off>Total</th><th class="num">Final Rate</th><th style="text-align:right" data-lock>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @cards.each do |c| %>
+              <tr class="searchable" data-search="<%= c.code %>">
+                <td>
+                  <% if c.picture.attached? %>
+                    <%= image_tag rails_blob_path(c.picture), class: "thumb", style: "height:40px;width:52px;object-fit:cover" %>
+                  <% else %><span class="thumb-empty" style="height:40px;width:52px"><%= c.code.gsub('AR-', '') %></span><% end %>
+                </td>
+                <td><%= link_to c.code, cost_card_path(c), class: "cc-code" %></td>
+                <td class="num"><%= rs(c.fabric_cost) %></td>
+                <td class="num"><%= rs(c.emb_cost) %></td>
+                <td class="num"><%= rs(c.cmt) %></td>
+                <td class="num"><%= rs(c.cm) %></td>
+                <td class="num"><%= rs(c.lass) %></td>
+                <td class="num"><%= rs(c.total) %></td>
+                <td class="num"><b class="final-rate"><%= rs(c.final_rate) %></b></td>
+                <td>
+                  <div class="row-actions">
+                    <%= link_to "View", cost_card_path(c), class: "btn-sm edit" %>
+                    <% unless current_user.view_only? %>
+                      <%= link_to "Edit", edit_cost_card_path(c), class: "btn-sm edit" %>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+            <% if @cards.empty? %>
+              <tr><td colspan="10" class="muted" style="text-align:center;padding:24px">No cost cards yet.</td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const input = document.getElementById("mdSearch"), countEl = document.getElementById("mdSearchCount");
+    if (!input) return;
+    const items = Array.from(document.querySelectorAll(".searchable"));
+    input.addEventListener("input", function () {
+      const q = input.value.trim().toLowerCase(); let n = 0;
+      items.forEach((el) => { const hit = !q || (el.dataset.search || "").toLowerCase().includes(q);
+        el.style.display = hit ? "" : "none"; if (hit) n++; });
+      countEl.textContent = q ? `${n} match${n === 1 ? "" : "es"}` : "";
+    });
+  })();
+</script>

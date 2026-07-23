@@ -1,0 +1,33 @@
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="logo">AR</span>
+      <h1>AR-Unit</h1>
+      <p>FACTORY MANAGEMENT SYSTEM</p>
+    </div>
+
+    <% if flash.now[:alert] || @login_error %>
+      <div class="err-box"><%= flash.now[:alert] || @login_error %></div>
+    <% end %>
+
+    <%= form_with url: login_path, method: :post, local: true do |f| %>
+      <div class="field">
+        <%= f.label :email, "Email" %>
+        <%= f.email_field :email, autofocus: true, autocomplete: "username",
+              placeholder: "you@arunit.com", value: params[:email] %>
+      </div>
+      <div class="field">
+        <%= f.label :password, "Password" %>
+        <%= f.password_field :password, autocomplete: "current-password",
+              placeholder: "••••••••" %>
+      </div>
+      <%= f.submit "Sign In", class: "btn" %>
+    <% end %>
+
+    <div class="login-hint">
+      <b>Demo login</b><br>
+      Email: <b>admin@arunit.com</b><br>
+      Password: <b>admin123</b>
+    </div>
+  </div>
+</div>

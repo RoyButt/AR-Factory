@@ -1,0 +1,8 @@
+<div class="party-row">
+  <%= pf.text_field :party_name, placeholder: "Party / customer", class: "pf-name" %>
+  <%= pf.select :pricing_mode, PartyPrice::MODES.map { |k, v| [v, k] } %>
+  <%= pf.number_field :value, step: 0.01, placeholder: "Value" %>
+  <%= pf.text_field :note, placeholder: "Note (optional)" %>
+  <%= pf.hidden_field :_destroy, value: 0, class: "pf-destroy" %>
+  <button type="button" class="pf-remove" title="Remove">✕</button>
+</div>
