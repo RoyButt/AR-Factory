@@ -32,3 +32,7 @@ local:
 #   service: Mirror
 #   primary: local
 #   mirrors: [ amazon, google, microsoft ]
+
+# Cloudinary (Heroku add-on) — reads CLOUDINARY_URL from the environment.
+cloudinary:
+  service: Cloudinary

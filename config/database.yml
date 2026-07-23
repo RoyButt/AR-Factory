@@ -48,8 +48,10 @@ test:
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
 #
+# Production runs on Heroku PostgreSQL — Rails reads the DATABASE_URL config var
+# (set automatically by the Heroku Postgres add-on).
 production:
-  <<: *default
-  database: ar_unit_factory_production
-  username: ar_unit_factory
-  password: <%= ENV["AR_UNIT_FACTORY_DATABASE_PASSWORD"] %>
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  url: <%= ENV["DATABASE_URL"] %>
