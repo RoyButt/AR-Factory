@@ -35,4 +35,4 @@ lines.each do |contractor, code, size, color, suits|
   lot.fabric_lot_lines.create!(contractor: contractor, design_variant: v, fabric_lot_color: col[color], suits: suits)
 end
 
-puts "  Lot 3093: #{lot.fabric_lot_colors.count} colors, #{lot.fabric_lot_lines.count} lines, total_received=#{lot.total_received}, used_suit=#{lot.used_suit}, remain_suit=#{lot.remain_suit}"
+puts "  Lot 3093: #{lot.fabric_lot_colors.count} colors, #{lot.fabric_lot_lines.count} lines, total_received=#{lot.total_received}, used_suit=#{lot.used_suits}, remain_suit=#{lot.remain_suit}"
