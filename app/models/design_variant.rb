@@ -5,7 +5,7 @@ class DesignVariant < ApplicationRecord
     reject_if: ->(a) { a["name"].blank? && a["value"].to_f.zero? }
 
   # Every field must be filled (0.0 is an acceptable value).
-  validates :size, presence: true
+  # Size is blank for printed (-P) variants — heads() treats blank as 0 — so it isn't required.
   validates :repeats_per_color, :trousers, :bazoo, :kali, :falas, presence: true
 
   # Machine heads = the numeric size token (e.g. "28" -> 28). Printed variants -> 0.
