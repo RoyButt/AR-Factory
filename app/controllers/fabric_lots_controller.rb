@@ -136,7 +136,9 @@ class FabricLotsController < ApplicationController
       }
     end
     @design_codes = @design_recipe.keys.sort
-    @head_sizes = variants.map { |v| v.size.to_s }.reject(&:blank?).uniq.sort_by(&:to_i)
+    # Fixed standard machine heads (a proper dropdown), plus any sizes already used so none are lost.
+    standard_heads = %w[24 28 32 36 40 44 48]
+    @head_sizes = (standard_heads + variants.map { |v| v.size.to_s }).reject(&:blank?).uniq.sort_by(&:to_i)
     @emb_factor = Setting.value_for("emb_factor", 0.337).to_f
     @round_step = Setting.value_for("rounding_step", 0.5).to_f
     @backup_div = Setting.value_for("backup_divisor", 39).to_f
