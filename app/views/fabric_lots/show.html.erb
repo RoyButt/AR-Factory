@@ -592,5 +592,23 @@
       if (adjPop && !e.target.closest(".adj-pop")) adjPop.classList.remove("open");
     });
     window.addEventListener("scroll", () => { if (adjPop) adjPop.classList.remove("open"); }, true);
+
+    // Responsive colours: few colours → expand to a comfortable width; many → squeeze (then scroll).
+    function sizeColours() {
+      var table = document.querySelector(".matrix-table"), scroll = document.querySelector(".table-scroll");
+      if (!table || !scroll) return;
+      var colourThs = table.querySelectorAll("thead .mx-colour");
+      var n = colourThs.length;
+      if (!n) return;
+      colourThs.forEach((th) => { th.style.width = ""; });                 // reset to measure fixed columns
+      var fixedW = 0;
+      table.querySelectorAll("thead tr > th").forEach((th) => { if (!th.classList.contains("mx-colour")) fixedW += th.offsetWidth; });
+      var avail = scroll.clientWidth - fixedW - 2;
+      var per = Math.max(58, Math.min(150, Math.floor(avail / n)));         // clamp: 58px squeeze … 150px comfy
+      colourThs.forEach((th) => { th.style.width = per + "px"; });
+    }
+    sizeColours();
+    if (window.ResizeObserver) { new ResizeObserver(sizeColours).observe(document.querySelector(".table-scroll")); }
+    else { window.addEventListener("resize", sizeColours); }
   })();
 </script>
