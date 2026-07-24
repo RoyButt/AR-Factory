@@ -319,7 +319,8 @@
         const head = num(erow.querySelector(".mx-linehead") && erow.querySelector(".mx-linehead").value);
         const r = embBackup(code, head);   // full computed EMB / Back Up for this line
         const vidEl = erow.querySelector(".mx-variant"), headEl = erow.querySelector(".mx-headsize");
-        if (vidEl) vidEl.value = r.none ? "" : r.variant;
+        // design_variant_id follows the DESIGN only (not the head), so a line saves once a design is picked
+        if (vidEl) vidEl.value = DESIGN_RECIPE[code] ? DESIGN_RECIPE[code].variant_id : "";
         if (headEl) headEl.value = head ? head : "";
         const run = erow.dataset.run;
         runTotals[run] = runTotals[run] || {};
@@ -492,7 +493,7 @@
     if (addContractorBtn) addContractorBtn.addEventListener("click", function () {
       var tpl = document.getElementById("lineTemplate"), tbody = document.querySelector(".matrix-table tbody");
       if (!tpl || !tbody) return;
-      var idx = "n" + Date.now();
+      var idx = "" + Date.now();   // numeric key — Rails strong-params rejects non-integer nested keys
       tbody.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/NEW_LINE/g, idx).replace(/NEW_RUN/g, idx));
       renumberLines(); recompute();
       var row = tbody.querySelector('tr.mx-emb-row[data-line="' + idx + '"]');

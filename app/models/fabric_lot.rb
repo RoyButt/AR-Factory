@@ -21,7 +21,7 @@ class FabricLot < ApplicationRecord
   accepts_nested_attributes_for :fabric_lot_colors, allow_destroy: true,
     reject_if: ->(a) { a["name"].blank? }
   accepts_nested_attributes_for :fabric_lot_lines, allow_destroy: true,
-    reject_if: ->(a) { a["design_variant_id"].blank? }
+    reject_if: ->(a) { a["contractor"].blank? && a["design_variant_id"].blank? }
   accepts_nested_attributes_for :lot_adjustments, allow_destroy: true,
     reject_if: ->(a) { a["gazana"].blank? || a["fabric_lot_color_id"].blank? }
 
