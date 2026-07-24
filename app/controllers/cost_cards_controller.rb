@@ -11,10 +11,11 @@ class CostCardsController < ApplicationController
   def show; end
 
   def new
-    @card = CostCard.new(fabric_rate: 300, fabric_multiplier: Setting.value_for("fabric_multiplier", 4), cmt: 300)
+    @card = CostCard.new(code: "AR-", fabric_rate: 325, fabric_multiplier: 3.5, cmt: 325, cm: 150)
     @card.emb_files.build
     @card.card_addons.build(target: "emb",   label: "EMB add-on",         amount: Setting.value_for("emb_addon", 25))
     @card.card_addons.build(target: "final", label: "Margin / round-off", amount: Setting.value_for("final_addon", 100))
+    @existing_codes = CostCard.pluck(:code)
   end
 
   def create
@@ -23,17 +24,20 @@ class CostCardsController < ApplicationController
       redirect_to cost_card_path(@card), notice: "Cost card created."
     else
       @card.emb_files.build if @card.emb_files.empty?
+      @existing_codes = CostCard.pluck(:code)
       render :new, status: :unprocessable_entity
     end
   end
 
   def edit
+    @existing_codes = CostCard.where.not(id: @card.id).pluck(:code)
   end
 
   def update
     if @card.update(card_params)
       redirect_to cost_card_path(@card), notice: "Cost card updated."
     else
+      @existing_codes = CostCard.where.not(id: @card.id).pluck(:code)
       render :edit, status: :unprocessable_entity
     end
   end

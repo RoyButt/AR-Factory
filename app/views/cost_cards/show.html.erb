@@ -29,7 +29,9 @@
         <table class="utable cc-price">
           <thead><tr><th>SR</th><th>Item</th><th class="num">Rate</th></tr></thead>
           <tbody>
-            <% @card.price_lines.each_with_index do |(name, val), i| %>
+            <%# View page hides EMB Cost & CM (edit-only), and any 0-value / removed line (e.g. deleted Lass) %>
+            <% shown = @card.price_lines.reject { |(name, val)| ["EMB Cost", "CM"].include?(name) || val.to_f.zero? } %>
+            <% shown.each_with_index do |(name, val), i| %>
               <tr>
                 <td><%= i + 1 %></td>
                 <td><%= name %></td>
@@ -65,7 +67,6 @@
             </tbody>
             <tfoot>
               <tr class="tot"><td colspan="6">EMB sub-total</td><td class="num"><%= @card.emb_subtotal.to_i %></td></tr>
-              <tr class="tot"><td colspan="6">EMB Cost</td><td class="num"><%= @card.emb_cost.to_i %></td></tr>
             </tfoot>
           </table>
         </div>

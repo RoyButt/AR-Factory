@@ -13,7 +13,7 @@ class CostCard < ApplicationRecord
   accepts_nested_attributes_for :party_prices, allow_destroy: true,
     reject_if: ->(a) { a["party_name"].blank? }
 
-  validates :code, presence: true
+  validates :code, presence: true, uniqueness: { case_sensitive: false, message: "already exists" }
 
   # EMB Rate table: sum of file line totals (sheet K10)
   def emb_subtotal

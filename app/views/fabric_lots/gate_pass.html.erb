@@ -1,6 +1,16 @@
 <style>
-  @page { size: A5 landscape; margin: 8mm; }
+  @page { size: A4 portrait; margin: 10mm; }
   .gp { width: 100%; }
+  @media print {
+    .gp-part { page-break-inside: avoid; margin-bottom: 6px; padding: 8px 10px; }
+    .gp { page-break-after: avoid; }
+    table.gp-gtable { font-size: 12px; }
+    table.gp-gtable td { padding: 7px 8px !important; }   /* compact but writable — fits one A4 page even with many colours */
+    .gp-ctotal b { font-size: 15px; }
+    .gp-gz-party { font-size: 12.5px; margin-bottom: 3px; }
+    .gp-title { font-size: 11px; margin-bottom: 4px; }
+    .gp-gz + .gp-gz { margin-top: 5px; }
+  }
   .gp-actions { text-align: right; margin-bottom: 8px; }
   .gp-actions button, .gp-actions a { padding: 7px 14px; border: 1px solid #d5dde4; border-radius: 8px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; }
   .gp-actions button { background: #22303f; color: #fff; }
@@ -87,7 +97,10 @@
             <tr class="gp-ghead"><th class="gp-cname-h">Colour</th><th class="gp-space-h"></th><th class="gp-ctotal-h">Total (m)</th></tr>
           </thead>
           <tbody>
-            <% @colours.each_with_index do |c, i| %>
+            <%# only the colours this contractor actually uses (skip zeros) so the pass fits one page %>
+            <% rows = @colours.each_with_index.select { |c, i| g[:per_colour][i].to_f > 0 } %>
+            <% if rows.empty? %><tr><td colspan="3" class="gp-empty">No cloth for this contractor.</td></tr><% end %>
+            <% rows.each do |c, i| %>
               <tr>
                 <td class="gp-cname" style="background:<%= c.swatch %>;color:<%= txt.(c.swatch) %>"><%= c.name.presence || "—" %></td>
                 <td class="gp-space"></td>

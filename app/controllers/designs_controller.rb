@@ -44,6 +44,8 @@ class DesignsController < ApplicationController
 
   def load_cost_cards
     @cost_cards = CostCard.includes(picture_attachment: :blob).order(:code)
+    # codes already turned into a Design — excluded from the picker so you can't add duplicates
+    @used_design_codes = Design.where.not(id: @design&.id).pluck(:code)
   end
 
   def block_view_only

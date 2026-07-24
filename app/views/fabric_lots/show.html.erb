@@ -59,14 +59,8 @@
       <input type="hidden" name="save_pattern_name" id="savePatternName">
       <div class="panel">
         <div class="mx-toolbar">
-          <span class="mx-toolbar-hint">Tick a contractor's row(s) to see their EMB / Back Up totals below.</span>
-          <button type="button" class="btn-soft" id="gatePassBtn" title="Print a gate pass for the ticked contractors (none ticked = all)">🚪 Produce Gate Pass</button>
-          <% unless ro %>
-            <span class="mx-toolbar-actions">
-              <button type="submit" name="add" value="colour" class="btn-soft">＋ Add colour</button>
-              <button type="submit" name="add" value="line" class="btn-soft">＋ Add Contractor</button>
-            </span>
-          <% end %>
+          <span class="mx-toolbar-hint">Tick a contractor's row(s) to see their EMB / Back Up totals below, then produce a gate pass.</span>
+          <button type="button" class="btn-soft" id="gatePassBtn" title="Tick contractors first, then produce their gate pass" disabled>🚪 Produce Gate Pass</button>
         </div>
         <div class="table-scroll">
           <table class="matrix-table">
@@ -76,11 +70,13 @@
                 <th class="mx-head"><%= f.date_field :lot_date, class: "mx-inp", disabled: ro %></th>
                 <th class="mx-head">Product Name</th>
                 <% colours.each do |c| %>
+                  <%# Colours are managed on the Fabric Lot edit page — read-only here (no add/edit/delete/received-gazana) %>
                   <th class="mx-colour" id="mxColHead<%= c.id %>" style="background:<%= c.swatch %>">
-                    <% unless ro %><button type="button" tabindex="-1" class="mx-col-remove" data-cid="<%= c.id %>" title="Remove colour">✕</button><% end %>
                     <div class="mx-colour-edit">
-                      <input type="color" tabindex="-1" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][hex]" value="<%= c.swatch %>" class="mx-colour-hex" data-cid="<%= c.id %>" title="Pick any colour" <%= "disabled" if ro %>>
-                      <input type="text" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][name]" value="<%= c.name %>" class="mx-inp mx-colour-name" placeholder="Name" <%= "disabled" if ro %>>
+                      <span class="mx-colour-swatch" style="background:<%= c.swatch %>"></span>
+                      <input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][hex]" value="<%= c.swatch %>" class="mx-colour-hex" data-cid="<%= c.id %>">
+                      <span class="mx-colour-name-ro"><%= c.name.presence || "—" %></span>
+                      <input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][name]" value="<%= c.name %>" class="mx-colour-name">
                     </div>
                     <input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][id]" value="<%= c.id %>">
                     <input type="hidden" name="fabric_lot[fabric_lot_colors_attributes][<%= c.id %>][wastage]" value="<%= c.wastage %>" class="mx-wast" data-cid="<%= c.id %>">
@@ -96,7 +92,9 @@
                 <td class="mx-metric">Received Gazana</td>
                 <% colours.each do |c| %>
                   <td class="mx-num">
-                    <%= number_field_tag "fabric_lot[fabric_lot_colors_attributes][#{c.id}][received_gazana]", c.received_gazana, step: 0.01, class: "mx-inp mx-recv", data: { cid: c.id }, disabled: ro %>
+                    <%# Received gazana is set on the edit page — read-only here (hidden field keeps it in the calc) %>
+                    <span class="mx-recv-ro"><%= number_with_precision(c.received_gazana, precision: 2, strip_insignificant_zeros: true) %></span>
+                    <%= hidden_field_tag "fabric_lot[fabric_lot_colors_attributes][#{c.id}][received_gazana]", c.received_gazana, class: "mx-recv", data: { cid: c.id } %>
                   </td>
                 <% end %>
               </tr>
@@ -228,11 +226,61 @@
             </tbody>
           </table>
         </div>
+        <% unless ro %>
+          <div style="margin-top:12px"><button type="button" id="addContractorBtn" class="btn-soft">＋ Add Contractor</button></div>
+          <template id="lineTemplate">
+            <tr class="mx-line mx-emb-row mx-line-new" data-line="NEW_LINE" data-run="NEW_RUN">
+              <td rowspan="2" class="mx-sr">
+                <span class="mx-sr-n"></span>
+                <button type="button" tabindex="-1" class="mx-line-remove" title="Remove design line">✕</button>
+                <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][NEW_LINE][_destroy]" value="0" class="mx-line-destroy">
+              </td>
+              <td rowspan="2" class="mx-contractor">
+                <select class="mx-inp mx-contractor-sel" name="fabric_lot[fabric_lot_lines_attributes][NEW_LINE][contractor]">
+                  <option value="" disabled selected>Party…</option>
+                  <% (@emb_parties || []).compact.reject(&:blank?).uniq.each do |pn| %><option value="<%= pn %>"><%= pn %></option><% end %>
+                </select>
+                <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][NEW_LINE][design_variant_id]" value="" class="mx-variant" data-line="NEW_LINE">
+                <input type="hidden" name="fabric_lot[fabric_lot_lines_attributes][NEW_LINE][head_size]" value="" class="mx-headsize" data-line="NEW_LINE">
+              </td>
+              <td rowspan="2" class="mx-design">
+                <div class="mx-design-pick">
+                  <select class="mx-inp mx-code" data-line="NEW_LINE">
+                    <option value="" disabled selected>Design…</option>
+                    <% @design_codes.each do |code| %><option value="<%= code %>"><%= code %></option><% end %>
+                  </select>
+                  <select class="mx-inp mx-linehead" data-line="NEW_LINE" title="Machine head">
+                    <option value="" disabled selected>Head…</option>
+                    <% @head_sizes.each do |sz| %><option value="<%= sz %>"><%= sz %></option><% end %>
+                  </select>
+                </div>
+              </td>
+              <% colours.each do |c| %>
+                <% base = "fabric_lot[fabric_lot_lines_attributes][NEW_LINE][line_color_usages_attributes][#{c.id}]" %>
+                <td class="mx-num mx-emb">
+                  <div class="mx-cell-fac">
+                    <span class="mx-emb-val" data-line="NEW_LINE" data-cid="<%= c.id %>" data-factor="1">0</span>
+                    <select class="mx-factor" data-line="NEW_LINE" data-cid="<%= c.id %>" name="<%= base %>[factor]" title="Full = calculated · Half = ÷2 · 0 = none">
+                      <option value="1" selected>Full</option><option value="0.5">Half</option><option value="0">0</option>
+                    </select>
+                  </div>
+                  <input type="hidden" name="<%= base %>[fabric_lot_color_id]" value="<%= c.id %>">
+                  <input type="hidden" name="<%= base %>[backup_factor]" value="1" class="mx-bkfac-hidden" data-line="NEW_LINE" data-cid="<%= c.id %>">
+                </td>
+              <% end %>
+            </tr>
+            <tr class="mx-line mx-line-b mx-backup-row mx-line-new">
+              <% colours.each do |c| %>
+                <td class="mx-num mx-backup"><div class="mx-cell-fac"><span class="mx-backup-val" data-line="NEW_LINE" data-cid="<%= c.id %>" data-factor="1">0</span></div></td>
+              <% end %>
+            </tr>
+          </template>
+        <% end %>
         <div id="mxSelSummary" class="mx-sel-summary" style="display:none"></div>
         <% unless ro %>
           <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
             <%= f.submit "Save changes", class: "btn-primary" %>
-            <span class="muted">Add / remove (top) saves your edits first. ✕ on a colour or line removes it.</span>
+            <span class="muted">＋ Add Contractor saves your edits first. Colours are managed on the Fabric Lot edit page.</span>
           </div>
         <% end %>
       </div>
@@ -408,23 +456,48 @@
         cb.disabled = (active !== null && cb.dataset.contractor !== active);
       });
     }
+    var gpBtn = document.getElementById("gatePassBtn");
+    function updateGatePassBtn() { if (gpBtn) gpBtn.disabled = !document.querySelector(".mx-pick:checked"); }
     document.addEventListener("change", (e) => {
       if (!e.target.closest(".mx-pick")) return;
       applyContractorLock();
       markSelectedRows();
       updateSelSummary();
+      updateGatePassBtn();
     });
-    // Gate pass: checked contractors → print page; none checked = all contractors.
-    var gpBtn = document.getElementById("gatePassBtn");
+    // Gate pass: only the ticked contractors (button is disabled until at least one is ticked).
     if (gpBtn) gpBtn.addEventListener("click", function () {
       const uniq = Array.from(new Set(Array.prototype.map.call(document.querySelectorAll(".mx-pick:checked"), (cb) => cb.dataset.contractor)));
-      let url = "/fabric_lots/<%= @lot.id %>/gate_pass";
-      if (uniq.length) url += "?" + uniq.map((c) => "contractors[]=" + encodeURIComponent(c)).join("&");
+      if (!uniq.length) return;
+      var url = "/fabric_lots/<%= @lot.id %>/gate_pass?" + uniq.map((c) => "contractors[]=" + encodeURIComponent(c)).join("&");
       window.open(url, "_blank");
     });
+    updateGatePassBtn();
 
     // remove a colour or design line: mark _destroy, save & reload
     function submitMatrix() { const f = document.getElementById("matrixForm"); if (f.requestSubmit) f.requestSubmit(); else f.submit(); }
+
+    // Renumber the visible contractor rows (# column) after add/remove.
+    function renumberLines() {
+      var n = 0;
+      document.querySelectorAll(".matrix-table tbody tr.mx-emb-row").forEach(function (r) {
+        var d = r.querySelector(".mx-line-destroy");
+        if (d && d.value === "1") return;
+        n++; var s = r.querySelector(".mx-sr-n"); if (s) s.textContent = n;
+      });
+    }
+
+    // Add a contractor row client-side (no page reload) — saved on "Save changes".
+    var addContractorBtn = document.getElementById("addContractorBtn");
+    if (addContractorBtn) addContractorBtn.addEventListener("click", function () {
+      var tpl = document.getElementById("lineTemplate"), tbody = document.querySelector(".matrix-table tbody");
+      if (!tpl || !tbody) return;
+      var idx = "n" + Date.now();
+      tbody.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/NEW_LINE/g, idx).replace(/NEW_RUN/g, idx));
+      renumberLines(); recompute();
+      var row = tbody.querySelector('tr.mx-emb-row[data-line="' + idx + '"]');
+      var sel = row && row.querySelector(".mx-contractor-sel"); if (sel) sel.focus();
+    });
     document.addEventListener("click", (e) => {
       const cr = e.target.closest(".mx-col-remove");
       if (cr) {
@@ -435,6 +508,15 @@
       }
       const lr = e.target.closest(".mx-line-remove");
       if (lr) {
+        const embRow = lr.closest("tr.mx-emb-row");
+        // A newly-added (unsaved) row: just drop it from the DOM, no reload.
+        if (embRow && embRow.classList.contains("mx-line-new")) {
+          const back = embRow.nextElementSibling;
+          embRow.remove();
+          if (back && back.classList.contains("mx-backup-row")) back.remove();
+          renumberLines(); recompute();
+          return;
+        }
         if (!confirm("Remove this design line?")) return;
         const d = lr.parentNode.querySelector(".mx-line-destroy");
         if (d) d.value = "1";

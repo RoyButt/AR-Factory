@@ -352,8 +352,8 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .color-pick-wrap .color-name-input { flex: 1 1 auto; width: 100%; padding: 9px 10px; border: 1px solid #d5dde4; border-radius: 8px; font-size: 13px; font-weight: 600; }
 #color-template, #line-template { display: none; }
 /* fabric-lot matrix view (colours as columns, sheet-style) */
-.matrix-table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 640px; }
-.matrix-table th, .matrix-table td { border: 1px solid #cdd7e0; padding: 9px 12px; text-align: center; white-space: nowrap; }
+.matrix-table { border-collapse: collapse; width: auto; font-size: 12.5px; min-width: 0; }
+.matrix-table th, .matrix-table td { border: 1px solid #cdd7e0; padding: 4px 5px; text-align: center; white-space: nowrap; }
 .matrix-table .mx-head { background: #6d8fb8; color: #fff; font-weight: 700; }
 .matrix-table .mx-colour { color: #fff; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
 .matrix-table .mx-lbl { background: #fff; font-weight: 700; text-align: left; }
@@ -392,10 +392,10 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .matrix-table .mx-colour .mx-inp { color: #fff; font-weight: 700; }
 .matrix-table .mx-colour .mx-inp option { color: #1f2d3d; }
 .matrix-table .mx-design-sel { text-align: left; }
-.matrix-table .mx-design { min-width: 200px; }
-.matrix-table .mx-design-pick { display: flex; gap: 5px; }
-.matrix-table .mx-design-pick .mx-code { flex: 1 1 auto; text-align: left; }
-.matrix-table .mx-design-pick .mx-linehead { flex: 0 0 66px; }
+.matrix-table .mx-design { min-width: 148px; }
+.matrix-table .mx-design-pick { display: flex; gap: 4px; }
+.matrix-table .mx-design-pick .mx-code { flex: 1 1 auto; text-align: left; min-width: 0; }
+.matrix-table .mx-design-pick .mx-linehead { flex: 0 0 48px; }
 .matrix-table .mx-colour-edit { display: flex; align-items: center; gap: 6px; justify-content: center; }
 .matrix-table .mx-colour-hex { flex: 0 0 26px; width: 26px; height: 26px; padding: 1px; border: 1px solid rgba(255,255,255,.6); border-radius: 5px; background: #fff; cursor: pointer; }
 .matrix-table .mx-colour-hex::-webkit-color-swatch-wrapper { padding: 0; }
@@ -722,7 +722,20 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .matrix-table .mx-design-pick > .ss-wrap:nth-child(2) { flex: 0 0 74px; }
 
 /* per-cell value + Full/Half/0 dropdown (side by side) */
-.matrix-table .mx-cell-fac { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.matrix-table .mx-cell-fac { display: flex; align-items: center; justify-content: center; gap: 4px; }
+/* Compact colour columns: smaller factor dropdown + narrower colour name so more colours fit */
+.matrix-table .mx-factor { padding: 2px 1px 2px 3px; font-size: 10.5px; border: 1px solid #d5dde4; border-radius: 5px; background: #fff; max-width: 52px; }
+.matrix-table .mx-colour-name { min-width: 0 !important; width: 56px !important; flex: 0 1 auto; }
+.matrix-table .mx-colour-edit { gap: 3px; }
+.matrix-table .mx-colour-hex { flex: 0 0 18px !important; width: 18px !important; height: 20px !important; }
+.matrix-table .mx-col-remove { width: 15px; height: 15px; top: 2px; right: 2px; font-size: 9px; }
+.matrix-table .mx-contractor { min-width: 108px; max-width: 132px; }
+.matrix-table .mx-contractor-sel { max-width: 100%; }
+.matrix-table .mx-sr { min-width: 34px; padding-left: 3px; padding-right: 3px; }
+.matrix-table .mx-inp { padding: 4px 5px; }
+.matrix-table .mx-emb, .matrix-table .mx-backup, .matrix-table .mx-total-emb, .matrix-table .mx-total-backup, .matrix-table .mx-combined { min-width: 52px; width: 52px; }
+/* checkbox in the colour header — keep it small so it doesn't widen the column */
+.matrix-table .mx-colour .mx-pick, .matrix-table .mx-colour-edit .mx-pick { width: 14px; height: 14px; }
 .matrix-table .mx-emb-val, .matrix-table .mx-backup-val { font-weight: 700; font-variant-numeric: tabular-nums; }
 .matrix-table .mx-cell-fac .ss-wrap { width: auto; flex: 0 0 auto; }
 /* single Full/Half/0 dropdown floats on the boundary — centered between the EMB (top) & Back Up (bottom) rows */
@@ -1325,3 +1338,33 @@ tr.mx-row-sel > td { background: #eaf2ff !important; }
 /* Fabric lot: EMB row in the selection summary + toolbar hint */
 .mx-sel-emb td { color: #2f4a6b; }
 .mx-toolbar-hint { font-size: 12.5px; color: #6b7a8c; }
+
+/* Cost card: duplicate design-code warning */
+.field input.field-dup { border-color: #d9453c !important; background: #fdeeee; box-shadow: 0 0 0 3px rgba(217,69,60,.15); }
+.cc-dup-msg { display: block; color: #b0392f; font-size: 11.5px; margin-top: 4px; font-weight: 600; }
+
+/* Cost card: live per-row EMB total (display cell, aligns with the inputs) */
+.emb-row .ef-total { text-align: right; font-weight: 800; font-size: 14px; color: #16202c; font-variant-numeric: tabular-nums; padding: 9px 6px; }
+
+/* Cost card: live Total / Final Rate on the edit form */
+.cc-live-totals { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.cc-lt { flex: 1; min-width: 160px; background: #f5f8fc; border: 1px solid #dbe6f2; border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; }
+.cc-lt span { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: #5b6b7d; }
+.cc-lt b { font-size: 20px; color: #22303f; font-variant-numeric: tabular-nums; }
+.cc-lt-final { background: #eef4fb; border-color: #cfe0f2; }
+.cc-lt-final b { color: #134a8e; }
+
+/* Collapsible sidebar — reclaims ~220px for wide tables (fabric-lot matrix, etc.) */
+.side-collapse-btn { position: absolute; top: 16px; right: 8px; width: 24px; height: 24px; border: 0; background: transparent; color: #9fb0c2; font-size: 17px; line-height: 1; cursor: pointer; border-radius: 6px; }
+.side-collapse-btn:hover { background: #33445a; color: #fff; }
+body.side-collapsed .side { display: none; }
+body.side-collapsed .main { margin-left: 0; }
+.side-reopen { position: fixed; top: 12px; left: 12px; z-index: 400; width: 40px; height: 40px; border-radius: 10px; border: 1px solid #33445a; background: #1f2d3d; color: #fff; font-size: 18px; cursor: pointer; display: none; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+body.side-collapsed .side-reopen { display: block; }
+.side-reopen:hover { background: #2a3b50; }
+
+/* Fabric lot: read-only colour header (managed on the edit page) + disabled gate pass */
+.matrix-table .mx-colour-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(255,255,255,.6); flex: 0 0 14px; }
+.matrix-table .mx-colour-name-ro { color: #fff; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.4); font-size: 12.5px; white-space: nowrap; }
+.matrix-table .mx-recv-ro { font-weight: 600; color: #1f2d3d; }
+#gatePassBtn:disabled { opacity: .5; cursor: not-allowed; }

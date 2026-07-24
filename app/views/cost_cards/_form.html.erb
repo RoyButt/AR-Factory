@@ -14,18 +14,19 @@
           <%= f.file_field :picture, accept: "image/*", class: "js-image-input" %>
         </div>
         <div class="fixed-grid">
-          <div class="field"><%= f.label :code, "Design code" %><%= f.text_field :code, placeholder: "AR-299", required: true, id: "cardCode" %></div>
+          <div class="field"><%= f.label :code, "Design code" %><%= f.text_field :code, placeholder: "AR-299", required: true, id: "cardCode" %><small class="cc-dup-msg" id="cardCodeDup" style="display:none">This design code already exists.</small></div>
           <div class="field"><%= f.label :fabric_rate, "Fabric rate (Rs)" %><%= f.number_field :fabric_rate, step: 0.01 %></div>
           <div class="field"><%= f.label :fabric_multiplier, "Fabric × (gaz/suit)" %><%= f.number_field :fabric_multiplier, step: 0.1 %></div>
           <div class="field"><%= f.label :cmt, "CMT" %><%= f.number_field :cmt, step: 0.01 %></div>
           <div class="field"><%= f.label :cm, "CM" %><%= f.number_field :cm, step: 0.01 %></div>
+          <%# Cut work & Hand Made are fixed — used by cutwork/handmade billing — so not removable %>
+          <div class="field"><%= f.label :cut_work, "Cut work" %><%= f.number_field :cut_work, step: 0.01 %></div>
+          <div class="field"><%= f.label :hand_made, "Hand Made" %><%= f.number_field :hand_made, step: 0.01 %></div>
         </div>
 
         <div class="form-section-subtitle">Additional / removable costs</div>
         <div class="form-grid removable-grid">
-          <div class="field removable"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :cut_work, "Cut work" %><%= f.number_field :cut_work, step: 0.01 %></div>
-          <div class="field removable"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :hand_made, "Hand Made" %><%= f.number_field :hand_made, step: 0.01 %></div>
-          <div class="field removable"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :lass, "Lass" %><%= f.number_field :lass, step: 0.01 %></div>
+          <div class="field removable" id="lassField"><button type="button" class="field-remove" title="Remove field">✕</button><%= f.label :lass, "Lass" %><%= f.number_field :lass, step: 0.01 %></div>
           <div class="field field-date"><%= f.label :card_date, "Date" %><%= f.date_field :card_date %></div>
           <div id="costLines" style="display: contents">
             <%= f.fields_for :cost_lines do |cl| %>
@@ -39,6 +40,10 @@
           <% end %>
         </template>
         <button type="button" id="addCostLine" class="btn-soft" style="margin-top:10px">+ Add cost line</button>
+        <div class="cc-live-totals">
+          <div class="cc-lt"><span>Total</span><b id="ccTotal">—</b></div>
+          <div class="cc-lt cc-lt-final"><span>Final Rate</span><b id="ccFinal">—</b></div>
+        </div>
       </div>
 
       <div class="img-preview cc-top-right" <%= "data-rotate-url=#{rotate_image_cost_card_path(@card)}".html_safe if @card.persisted? %>>
@@ -54,8 +59,8 @@
     </div>
 
     <div class="form-section-title">Embroidery Files (EMB Rate)</div>
-    <p class="muted" style="margin-bottom:10px">Total per file = ROUND((stitch ÷ 1000) × rate × head, 0) × reapts. EMB Cost = subtotal + EMB add-on.</p>
-    <div class="emb-head"><span>File Name</span><span>Stitch</span><span>Head</span><span>Reapts</span><span>Rate</span><span></span></div>
+    <p class="muted" style="margin-bottom:10px">Total per file = ROUND((stitch ÷ 1000) × rate × head, 0). EMB Cost = subtotal + EMB add-on.</p>
+    <div class="emb-head"><span>File Name</span><span>Stitch</span><span>Head</span><span>Rate</span><span>Total</span><span></span></div>
     <div id="embFiles">
       <%= f.fields_for :emb_files do |ef| %>
         <%= render "emb_fields", ef: ef %>
@@ -169,17 +174,52 @@
         if (row.style.display === "none") return;
         const stitch = numv(row.querySelector('[name$="[stitch]"]'));
         const head   = numv(row.querySelector('[name$="[heads]"]'));
-        const reapts = numv(row.querySelector('[name$="[reapts]"]'));
+        const reapts = numv(row.querySelector('[name$="[reapts]"]')) || 1;
         const rate   = numv(row.querySelector('[name$="[rate]"]'));
-        sum += (STITCH_DIV ? Math.round((stitch / STITCH_DIV) * rate * head) : 0) * reapts;
+        const total  = (STITCH_DIV ? Math.round((stitch / STITCH_DIV) * rate * head) : 0) * reapts;
+        const tEl = row.querySelector(".ef-total");
+        if (tEl) tEl.textContent = Math.round(total).toLocaleString();   // live per-row total
+        sum += total;
       });
       const el = document.getElementById("embSubtotal");
       if (el) el.textContent = "Rs " + (Math.round(sum)).toLocaleString();
+      return Math.round(sum);
     }
     box.addEventListener("input", embSubtotal);
     box.addEventListener("change", embSubtotal);
     document.getElementById("addEmb").addEventListener("click", function () { setTimeout(embSubtotal, 0); });
     embSubtotal();
+
+    // Live Total + Final Rate on the edit page (mirrors the view-page calc).
+    function fld(name) { var el = document.querySelector('[name="cost_card[' + name + ']"]'); return el ? numv(el) : 0; }
+    function sumAmounts(containerId) {
+      var c = document.getElementById(containerId), s = 0;
+      if (!c) return 0;
+      c.querySelectorAll('[name$="[amount]"]').forEach(function (el) {
+        var row = el.closest(".addon2-row, .cl-field");
+        if (row && row.style.display === "none") return;
+        var d = row && row.querySelector(".a2-destroy, .cl-destroy");
+        if (d && d.value === "1") return;
+        s += numv(el);
+      });
+      return s;
+    }
+    function recalcTotal() {
+      var fabric  = fld("fabric_rate") * fld("fabric_multiplier");
+      var embCost = embSubtotal() + sumAmounts("embAddons");
+      var total   = fabric + embCost + fld("cmt") + fld("cut_work") + fld("hand_made") + fld("cm") + fld("lass") + sumAmounts("costLines");
+      var finalRate = total + sumAmounts("finalAddons");
+      var tEl = document.getElementById("ccTotal"), fEl = document.getElementById("ccFinal");
+      if (tEl) tEl.textContent = "Rs " + Math.round(total).toLocaleString();
+      if (fEl) fEl.textContent = "Rs " + Math.round(finalRate).toLocaleString();
+    }
+    var ccForm = document.querySelector(".form-card form");
+    if (ccForm) {
+      ccForm.addEventListener("input", recalcTotal);
+      ccForm.addEventListener("change", recalcTotal);
+      ccForm.addEventListener("click", function () { setTimeout(recalcTotal, 0); });  // catches add/remove buttons
+      recalcTotal();
+    }
 
     const ctpl = document.getElementById("cost-line-template"), cbox = document.getElementById("costLines");
     document.getElementById("addCostLine").addEventListener("click", function () {
@@ -236,16 +276,29 @@
       });
     }
 
-    // Disable the Save button until a Design code is entered.
+    // Design code: keep the "AR-" prefix locked, flag duplicates in red, gate the Save button.
     const codeInput = document.getElementById("cardCode");
     const submitBtn = document.getElementById("cardSubmit");
-    if (codeInput && submitBtn) {
-      const syncSubmit = () => { submitBtn.disabled = codeInput.value.trim() === ""; };
-      codeInput.addEventListener("input", syncSubmit);
-      syncSubmit();
+    const dupMsg = document.getElementById("cardCodeDup");
+    const EXISTING = (<%= (@existing_codes || []).to_json.html_safe %>).map((s) => (s || "").trim().toUpperCase());
+    if (codeInput) {
+      const syncCode = () => {
+        let v = codeInput.value;
+        if (!/^AR-/i.test(v)) { v = "AR-" + v.replace(/^a?r?-?/i, ""); codeInput.value = v; }  // lock AR- prefix
+        codeInput.value = codeInput.value.toUpperCase();
+        const clean = codeInput.value.trim().toUpperCase();
+        const dup = EXISTING.indexOf(clean) >= 0;
+        const empty = clean === "" || clean === "AR-";
+        codeInput.classList.toggle("field-dup", dup);
+        if (dupMsg) dupMsg.style.display = dup ? "block" : "none";
+        if (submitBtn) submitBtn.disabled = empty || dup;
+      };
+      codeInput.addEventListener("input", syncCode);
+      codeInput.addEventListener("focus", function () { if (this.value.trim() === "") this.value = "AR-"; });
+      syncCode();
     }
 
-    // Cross out a removable field: clear its value (drops out of the total) and hide it.
+    // Cross out a removable field (e.g. Lass): clear its value (drops out of the total) and hide it.
     const grid = document.querySelector(".form-grid");
     if (grid) {
       grid.addEventListener("click", function (e) {

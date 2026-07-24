@@ -6,7 +6,7 @@
   <%= form_with model: @design, url: (@design.persisted? ? design_path(@design) : designs_path),
                 method: (@design.persisted? ? :patch : :post), local: true, html: { multipart: true } do |f| %>
 
-    <% code_options = (@cost_cards.map(&:code) + [@design.code]).compact.uniq.sort %>
+    <% code_options = (@cost_cards.map(&:code) - Array(@used_design_codes) + [@design.code]).compact.uniq.sort %>
     <% code_images = @cost_cards.each_with_object({}) { |c, h| h[c.code] = (c.picture.attached? ? rails_blob_path(c.picture) : nil) } %>
 
     <div class="cc-top">
